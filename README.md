@@ -1,4 +1,4 @@
-![https://github.com/themanyone/muse-group-planning-assistant/blob/main/Muse_From_Chaos_to_Plans.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/Muse_From_Chaos_to_Plans.png)
+![Muse_From_Chaos_to_Plans.png](Muse_From_Chaos_to_Plans.png)
 
 ---
 
@@ -71,7 +71,7 @@ bash test.sh
 
 ---
 
-![https://github.com/themanyone/muse-group-planning-assistant/blob/main/GNU_GPL_Golden_Open_Source_Celebration.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/GNU_GPL_Golden_Open_Source_Celebration.png)
+![GNU_GPL_Golden_Open_Source_Celebration.png](GNU_GPL_Golden_Open_Source_Celebration.png)
 
 ---
 
