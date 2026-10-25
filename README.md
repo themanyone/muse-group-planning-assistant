@@ -124,6 +124,7 @@ Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https
 - [Glossary](https://github.com/hrabanazviking/hrabanazviking/blob/main/GLOSSARY.md)
 - [Guide to Volmarr's Writings and Philosophy](https://github.com/hrabanazviking/hrabanazviking/blob/main/Volmarr_writings_philosophy.md)
 - [Tech Manual to the Entity Named Volmarr](https://github.com/hrabanazviking/hrabanazviking/blob/main/Complete_Technical_Manual_to_Interacting_With_Volmarr_Wyrd.md)
+- [Resume](https://github.com/hrabanazviking/hrabanazviking/blob/main/Volmarr_Wyrd_Public_Resume_public.pdf)
 
 ---
 
