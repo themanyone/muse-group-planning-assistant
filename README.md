@@ -69,6 +69,12 @@ bash run.sh
 bash test.sh
 ```
 
+---
+
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/GNU_GPL_Golden_Open_Source_Celebration.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/GNU_GPL_Golden_Open_Source_Celebration.png)
+
+---
+
 ## 📜 License
 This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
