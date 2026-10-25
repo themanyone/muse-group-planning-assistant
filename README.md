@@ -110,9 +110,18 @@ Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https
 - [GitHUB](https://github.com/hrabanazviking)
 - [Norse-Pagan Blog](https://volmarrsheathenism.com/)
 - [Book of Shadows](https://volmarrbookofshadows.wordpress.com)
-- 
-
-
+- [LinkTree](https://linktr.ee/HrabanazViking)
+- [Facebook](https://www.facebook.com/volmarr.viking)
+- [Amazon Author Page](https://www.amazon.com/stores/Volmarr-Wyrd/author/B0HNMWVDD7)
+- [Rune Keys of Yggdrasill Book](https://www.amazon.com/Rune-Keys-Yggdrasill-Cosmology-Trolld%C3%B3mr-Soul-Craft-ebook/dp/B0HNMHXV39)
+- [Steam](https://steamcommunity.com/id/hrabanazviking/)
+- [Gravatar](https://gravatar.com/volmarr)
+- [RuneForgeAI](https://huggingface.co/RuneForgeAI)
+- [Linkedin](https://www.linkedin.com/in/volmarr-wyrd)
+- [HuggingFace](https://huggingface.co/Volmarr)
+- [Glossary](https://github.com/hrabanazviking/hrabanazviking/blob/main/GLOSSARY.md)
+- [Guide to Volmarr's Writings and Philosophy](https://github.com/hrabanazviking/hrabanazviking/blob/main/Volmarr_writings_philosophy.md)
+- [Tech Manual to the Entity Named Volmarr](https://github.com/hrabanazviking/hrabanazviking/blob/main/Complete_Technical_Manual_to_Interacting_With_Volmarr_Wyrd.md)
 
 ### [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human) 
 
