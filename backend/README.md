@@ -564,3 +564,14 @@ A README that only boasts is marketing. This one keeps the ledger:
 *Built the slow way on purpose: one slice, one test run, one commit at a
 time — so that at any moment, anyone on the team can ask "what do we
 actually have?" and get an answer that is true.*
+
+---
+
+Backend by [Volmarr Wyrd](https://github.com/hrabanazviking) and his Muse Agent [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir).
+
+---
+
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg)
+
+---
+
