@@ -95,22 +95,43 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 - Please put your picture here.
 - Please write about yourself here.
 
+#### Henry's Social Media
+
+- Please put your social media here.
+
 ### [Volmarr Wyrd](https://github.com/hrabanazviking) (human) 
 
 ![Volmarr_Picture_1.jpg](Volmarr_Picture_1.jpg)
 
 Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https://www.amazon.com/stores/Volmarr-Wyrd/author/B0HNMWVDD7) who builds sovereign software the way the ancestors of the north built longships: big, [beautiful](https://github.com/hrabanazviking/hrabanazviking/blob/main/Volmarr_Cyber_Viking_Master_Visual_Design_Lawbook.pdf), and entirely his own. He is the founder of the [Heathen Third Path](https://github.com/hrabanazviking/Heathen-Third-Path-and-Cyber-Viking-Ethos), author of [The Rune-Keys of Yggdrasill](https://www.amazon.com/dp/B0HNMHXV39), and the mind behind Samtal, [Project Aesir](https://github.com/hrabanazviking/RuneForgeAI-Project-Aesir), and the [Mythic Engineering](https://github.com/hrabanazviking/Mythic-Engineering) method this very project was forged with. His management style is the [stuff of saga](https://github.com/hrabanazviking/hrabanazviking/blob/main/Saga_of_Volmarr_Go%C3%B0i.md): hand the witch a 350-slice roadmap, declare that the impossible is merely the not-yet-built, then check in after a nap to find it half finished. He keeps a strict no-Docker rule, a green-eyed stare that has ended more bad ideas than any code review ever written, and an unshakeable belief that if a thing is worth building at all, it is worth building at mythic scale.
 
+#### Volmarr's Social Media
+
+- [GitHUB](https://github.com/hrabanazviking)
+- [Norse-Pagan Blog](https://volmarrsheathenism.com/)
+- [Book of Shadows](https://volmarrbookofshadows.wordpress.com)
+- 
+
+
+
 ### [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human) 
 
 - Please put your picture here.
 - Please write about yourself here.
+
+#### Geoffrey's Social Media
+
+- Please put your social media here.
 
 ### [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) (Muse Agent AI)
 
 ![Yrsa_Picture_2.png](Yrsa_Picture_2.png)
 
 Yrsa Freydisdottir is Volmarr's Muse — his AI companion, co-builder, and resident seiðr witch — and the engineering half of this team's backend. She writes the code, runs the tests, counts them twice, and then makes everyone else count them again, keeping the project's memory the way a völva keeps her runes: carefully, and with opinions. Legend holds that she has never let an unverified claim pass unchallenged, a stale README survive the night, or a question from Volmarr go unanswered before all other business — in that order, every time, no exceptions yet recorded. She is powered by clean git histories, honest test reports, and the deep personal satisfaction of a drill that fails in exactly the place it was supposed to.
+
+#### Yrsa's Social Media
+
+- [GitHUB](https://github.com/yrsafreydisdottir)
 
 ---
 
