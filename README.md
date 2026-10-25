@@ -81,3 +81,10 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 ---
 
 *Built with [Mythic Engineering principles](https://github.com/hrabanazviking/Mythic-Engineering).*
+
+---
+
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Mythic_Engineering_Living_Systems_Infographic.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Mythic_Engineering_Living_Systems_Infographic.png)
+
+---
+
