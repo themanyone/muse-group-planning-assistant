@@ -1014,3 +1014,26 @@ paper:
   `sh demo.sh` is the workaround there), and a cold tree now
   creates its database directory itself, so the ZIP runs
   from a bare unzip with no manual setup.
+
+
+## Phase 15 note (B-152 → B-156) — one additive field, the rest is operations
+
+- **`GET /health` grew a `checks` object** (B-155,
+  additive; contract unchanged at 187 paths / 217 schemas):
+  `checks.database` (status + engine name), `checks.jobs`
+  (queued/running/done/dead counts,
+  `oldest_queued_age_seconds`, `stuck_running`),
+  `checks.ai` / `checks.mail` (configured driver names),
+  `checks.storage` (probe status). The top-level `status`
+  can now be `ok`, `degraded`, or `down`; `down` answers
+  **503 with the same body shape** — a status page can render
+  the checks directly, and a load balancer already
+  understands the 503. **Disclosure rule:** `checks` is
+  populated only for a signed-in caller; anonymous requests
+  receive `checks: {}` with the same status word — render
+  the deep view from an authenticated session. Nothing else
+  in the contract moved.
+- Everything else in Phase 15 is deployment-side and needs
+  no frontend work: PostgreSQL promotion (same API, other
+  engine), the native installer + systemd units, the
+  reverse-proxy guide, RUNBOOK.md, and the upgrade script.

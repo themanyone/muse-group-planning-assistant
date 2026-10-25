@@ -1,0 +1,36 @@
+# Group Planning Assistant — API service (roadmap B-153).
+#
+# A TEMPLATE: deploy/install.sh renders @PREFIX@, @USER@ and
+# @CONFIG@ into /etc/systemd/system/gpa.service. Native
+# install only — no Docker, ever (decision D-24).
+[Unit]
+Description=Group Planning Assistant — API (FastAPI under uvicorn)
+Documentation=file:@PREFIX@/DEPLOYMENT.md
+After=network.target
+Wants=network.target
+
+[Service]
+Type=exec
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@
+EnvironmentFile=@CONFIG@/gpa.env
+# Localhost on purpose: the reverse proxy (deploy/PROXY.md,
+# roadmap B-154) is the public face and terminates TLS.
+ExecStart=@PREFIX@/.venv/bin/uvicorn gpa.main:create_app --factory --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+# Hardening, kept honest: the code tree is read-only to the
+# service; only the data and backup directories are writable
+# (SQLite's WAL lives beside the database file, in data/).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@PREFIX@/data @PREFIX@/backups
+
+[Install]
+WantedBy=multi-user.target

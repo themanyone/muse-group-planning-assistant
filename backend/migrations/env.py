@@ -3,7 +3,11 @@
 The migration path and the dev ``create_all`` path read the SAME
 metadata (gpa.db.Base), so the schema can never drift between them.
 The database URL comes from GPA_DATABASE_URL (via gpa.config), never
-from a second config file that could disagree with the app.
+from a second config file that could disagree with the app — with
+one exception: a programmatic run may hand an explicit URL through
+``config.attributes["database_url"]`` (the B-152 data mover promotes
+a deployment by migrating a DIFFERENT database than the process's
+own; the attribute is Alembic's channel for exactly that).
 """
 
 from logging.config import fileConfig
@@ -19,9 +23,18 @@ from gpa import models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False is load-bearing: the
+    # default (True) silences every logger the host process
+    # already configured — an application that runs Alembic
+    # in-process (the B-152 mover does) would lose its access
+    # log from that moment on. Alembic's ini configures
+    # Alembic's loggers; it does not own the process's.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+config.set_main_option(
+    "sqlalchemy.url",
+    config.attributes.get("database_url") or get_settings().database_url,
+)
 target_metadata = Base.metadata
 
 

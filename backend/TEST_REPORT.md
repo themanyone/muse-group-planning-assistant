@@ -678,3 +678,101 @@ correction.
   part of the submission, the sole carve-out being the
   Phase 11 Samtal integration surface as it exists in this
   repository.
+
+
+# Addendum — Phase 15 (B-156 gate, 2026-10-25; deployment & operations)
+
+Phase 15 made the backend operable by someone who is not
+its author: promotable to PostgreSQL, installable from a
+script, frontable by a proxy from a written guide,
+observable at /health with a one-page runbook, and
+upgradable in place with a plain-words rollback. No ZIP
+this phase (§8's train ended at ZIP-Final).
+
+## Environment truth table — what "tested" meant here
+
+| Claim | How it was proven | Extent |
+|---|---|---|
+| PostgreSQL parity | Real PostgreSQL **16.2** server process; binaries from the `pgserver` pip wheel (v0.1.4), run as a throwaway cluster as user `pgdev`, port 54329, trust auth on 127.0.0.1 | Parity file 4/4 (migration chain up/down/up; mover over the full demo story with per-table count+hash verification; core flow + group erasure; sealed-secret absence). Full suite in PG mode at this gate — totals below. Mid-gate, the build VM was reset under the work: the first SQLite gate run died at ~68% (all green to that point), the `pgdev` user and group traversal went with the reset, and the cluster (binaries + data, preserved in the workspace) was relocated to a `pgdev`-owned tree at `/tmp/pgrun` and restarted — same server, same version, same route. Both gate suites were then run from the top. |
+| Installer (B-153) | `deploy/install.sh` run end-to-end into a throwaway prefix on this VM: real venv from the lock, env file stat-proven **0640 root:service-group**, zero template tokens left, `systemd-analyze verify` silent on all four GPA units, installed tree booted and answered /health ok | **NOT RUN: installs on a real Raspberry Pi-class machine and on a real cloud VM** — no such machines are reachable from this VM. The exact step that performs them: `sudo deploy/install.sh /path/to/unpacked-release` on the target, then `systemctl start gpa gpa-worker` and `curl http://127.0.0.1:8000/health`. |
+| Proxy guide (B-154) | Real **Caddy v2.11.7** (official binary) in front of a real backend, TLS from Caddy's internal CA, guide followed literally | Proven: /health 200 over HTTP/2 + HSTS header; 11 MiB body → **413 from Caddy**; feed request reached the app (404) with the access log recording `calendar/feed/REDACTED` and the token string nowhere in the log. **NOT RUN: nginx** — no nginx binary is obtainable here (apt has no network); the example ships reviewed, and PROXY.md says so. Completes where nginx exists with: `nginx -t -c deploy/nginx.conf.example` then the same three curl assertions. |
+| Runbook (B-155) | All five failures reproduced as tests (`tests/test_runbook.py`, 5 passed) | Mail: failing transport → failure recorded → transport fixed → resend delivered. Quota: budget cap → queue `paused: budget` → cap raised → extraction proceeded. Disk: a real **1 MB tmpfs** mounted under storage, filled until writes failed and /health degraded, freed and healed. Token: `access_token_minutes=-5` (zero still validates inside its birth second) → 401 → fresh login 200. Job stuck: stale `running` row → /health `stuck_running ≥ 1` → the real CLI listed it unchanged, `--apply` requeued it, the worker drained it to done. |
+| Upgrade drill (B-156) | `scripts/upgrade_drill.py` between the two real release ZIPs | **PASS.** v0.4 installed fresh (1.7 s), marker user+group written through the v0.4 API (8.8 s), `scripts/upgrade.py` ran backup → migrate → smoke → swap (12.8 s), proof (8.1 s): migration stamp none → `0016_phase13_privacy`, marker intact and logging in through the upgraded tree, previous tree whole, bundle verified and carried. First drill run failed at the final boot and caught two real defects, both fixed at root (editable-install `.pth` orphaning; path-bound venv shebangs — see the B-156 commit). |
+
+## Defects this phase found in earlier work
+
+1. **Erasure deadlocked on PostgreSQL** (B-152's parity
+   run): the request session's storage-sweep read
+   transaction held locks the compact connection's
+   `VACUUM (FULL)` needed; each waited on the other
+   (pg_stat_activity showed the pair; the test hung nine
+   minutes pre-fix, passes in ~24 s post-fix). `erase_group`
+   now ends the session's transaction before compacting.
+   SQLite's locking never formed the circle.
+2. **/health could 500 while reporting health** (B-155's
+   tests): a database answering SELECT 1 without a schema
+   (mid-migration) raised out of the unguarded jobs query.
+   The jobs check now reports error and marks the service
+   down.
+3. **A swapped-in tree would not boot** (B-156's drill,
+   twice over): uv's default editable install names the
+   staging path in a `.pth`, and console-script shebangs
+   name the venv's interpreter absolutely — both die when
+   the tree is renamed into place. Staged/serving venvs
+   build `--no-editable`, and upgrade.py rebuilds the
+   serving venv at its final address after the swap.
+4. **Deep /health leaked the engine to anonymous callers**
+   (this gate's SQLite run — its one failure, against
+   Phase 13's `test_meta_and_health_leak_nothing`): B-155's
+   checks published `engine: "sqlite"` on the
+   unauthenticated surface the threat model pins to
+   liveness + version only. Fixed forward in `9d8d7cd`:
+   the deep checks are disclosed to signed-in callers
+   (resolved softly through `deps.get_principal`); the
+   anonymous answer is the original minimal one, and the
+   threat test passes unchanged. Because the fix changed
+   behaviour, both gate suites were re-run from the fixed
+   tree — the totals below are from those runs, not the
+   first attempt.
+5. **PG-mode isolation vs module-scoped worlds** (this
+   gate's PG run): conftest's per-test TRUNCATE wiped the
+   one module-scoped world in the suite
+   (test_authz_fuzz.py) — and no function-scoped reset can
+   precede a module fixture, since broader scopes build
+   first. Isolation now mirrors SQLite's own granularity:
+   a session-scoped reset before anything is built,
+   per-test resets elsewhere, and the shared-world module
+   entered empty and left alone (`f9ce3a2`). One more
+   skip-list miss was caught the same hour:
+   `test_sqlite_pragmas` is a SQLite-file test by nature
+   (`9263ca4`).
+6. **Alembic's fileConfig silenced the app's loggers**
+   (this gate's PG run): migrations/env.py used the
+   default `disable_existing_loggers=True`, so the
+   mover's in-process upgrade disabled the access logger
+   for the rest of the process — visible only on PG,
+   where the parity tests actually run in-process.
+   `disable_existing_loggers=False` now (`612ba7d`).
+
+## Gate totals (final tree, both engines)
+
+The suite was run in two halves per engine (files a–m,
+then n–z, each from its own log, back-to-back against the
+same tree) after the build VM's resets killed two
+single-run attempts mid-flight; the halves' logs are the
+record (`~/workspace/.verify-tmp/p15-gateH1/H2.log`,
+`p15-gatePG1c/PG2b.log`).
+
+- **SQLite: 877 passed, 4 skipped, 0 failed**
+  (558 + 319; the 4 skips are the parity tests standing
+  down without a PG admin URL, by design).
+- **PostgreSQL: 865 passed, 16 skipped, 0 failed**
+  (543 + 322; the 16 skips are the named SQLite-file tests
+  whose guarantees the parity file re-proves, and the
+  parity tests run here — the 12-test passed delta is
+  exactly the 12-test skip delta).
+- **Collected on both engines: 881 = 853 (Phase 14 gate)
+  + 28 new** (parity 4, packaging 4, proxy 3, health 5,
+  runbook 5, upgrade 7). Contract unchanged: 187 paths /
+  217 schemas. Progress: **156/350 slices, Phases 0–15
+  complete.**

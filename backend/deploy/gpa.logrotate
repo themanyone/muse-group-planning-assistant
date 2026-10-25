@@ -1,0 +1,19 @@
+# Group Planning Assistant — log rotation (roadmap B-153).
+#
+# The systemd units log to the JOURNAL by default, where
+# journald's own rotation applies (SystemMaxUse / MaxRetentionSec
+# in /etc/systemd/journal.conf) — in that posture this file is
+# not needed at all. Install it as /etc/logrotate.d/gpa ONLY if
+# the operator overrides the units to append to files, e.g.
+# StandardOutput=append:/var/log/gpa/api.log — then these are
+# the logs it rotates. Installed by deploy/install.sh only on
+# request (GPA_INSTALL_LOGROTATE=1).
+/var/log/gpa/*.log {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+    su gpa gpa
+}

@@ -4430,8 +4430,14 @@
         "type": "object"
       },
       "HealthResponse": {
-        "description": "The first thing to check when \"it doesn't work\" (roadmap \u00a75).",
+        "description": "The first thing to check when \"it doesn't work\" (roadmap \u00a75).\n\n``checks`` is the deepened view (B-155): database engine,\njob-queue shape, configured drivers, and the storage\nprobe \u2014 the numbers RUNBOOK.md's five failures key on.",
         "properties": {
+          "checks": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Checks",
+            "type": "object"
+          },
           "database": {
             "title": "Database",
             "type": "string"
@@ -22626,7 +22632,7 @@
     },
     "/health": {
       "get": {
-        "description": "Liveness + database reachability in one small answer.",
+        "description": "Liveness for everyone; the deep checks for signed-in\ncallers (see the module docstring for why).",
         "operationId": "health_health_get",
         "responses": {
           "200": {

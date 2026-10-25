@@ -10,12 +10,12 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–14 complete · Phase 15 (deployment and operations) next |
+| 📍 Where we are | Phases 0–15 complete · Phase 16 (scale and second integrations) next |
 |---|---|
-| 🧩 Roadmap | **151 of 350 slices** built — B-001 → B-151 of a 29-phase roadmap |
-| ✅ Tests | **853 passing**, counted from one clean run against the committed tree |
+| 🧩 Roadmap | **156 of 350 slices** built — B-001 → B-156 of a 29-phase roadmap |
+| ✅ Tests | **877 passing** on SQLite (865 on PostgreSQL), counted from clean runs against the committed tree |
 | 📜 API contract | **187 paths · 217 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
-| 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) today, PostgreSQL on the roadmap |
+| 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) and PostgreSQL, both proven by the same suite |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
 Licence: GNU General Public License version 2 (GPLv2)
@@ -84,7 +84,7 @@ sentence.
 
 ## ✨ What it can do today
 
-Everything below is built, tested, and committed (Phases 0–14).
+Everything below is built, tested, and committed (Phases 0–15).
 
 ### 📥 Feed it anything
 
@@ -498,7 +498,7 @@ human edits applied).
 > run against the final committed tree**, and the arithmetic must
 > reconcile: previous total + new tests = collected = passed. A number
 > from a mid-edit run is not a number; it's a rumour. The current count —
-> **853** — was taken that way, twice, by two different runners, on a tree
+> **877** — was taken that way, from clean runs against the committed tree, on a tree
 > whose `/tmp` had first been checked for room to breathe.
 
 ---
@@ -529,7 +529,7 @@ code provably the team's own work).
 | 12 | External publishing integrations | B-131 → B-138 | ✅ |
 | 13 | Security hardening, privacy, and erasure | B-139 → B-146 | ✅ |
 | 14 | Submission freeze and demo proof | B-147 → B-151 | ✅ |
-| 15 | Deployment and operations | B-152 → B-156 | ⬜ |
+| 15 | Deployment and operations | B-152 → B-156 | ✅ |
 | 16 | Scale and second integrations | B-157 → B-160 | ⬜ |
 | 17 | Modularity, internal encrypted API, resilience, and craft | B-161 → B-180 | ⬜ |
 | 18 | Documentation, diagrams, and the per-file code atlas | B-181 → B-200 | ⬜ |
@@ -576,8 +576,8 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **This README describes the committed tree (Phases 0–14).** Phase 15
-  is next in the forge; everything past B-151 in the roadmap table above
+- **This README describes the committed tree (Phases 0–15).** Phase 16
+  is next in the forge; everything past B-156 in the roadmap table above
   is a plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.
@@ -587,8 +587,12 @@ A README that only boasts is marketing. This one keeps the ledger:
 - **Facebook publishing makes drafts only.** Creating a real event is a
   later phase, and when it lands it will be a human pressing the button —
   never the backend deciding on its own.
-- **PostgreSQL is the roadmap's scale target**; today's proven ground is
-  SQLite with the strict durability settings described above.
+- **PostgreSQL parity is proven** (B-152): the full suite passes on both
+  engines against a real PostgreSQL 16.2 server, and the SQLite→Postgres
+  mover verifies every table by row count and hash. A production
+  PostgreSQL *deployment* has not been rehearsed yet — the native
+  installer (B-153) targets it, but Pi-class and cloud installs are
+  still unrun.
 
 ## 📂 Repository map
 

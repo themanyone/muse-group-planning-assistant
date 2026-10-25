@@ -4,11 +4,17 @@ from pydantic import BaseModel
 
 
 class HealthResponse(BaseModel):
-    """The first thing to check when "it doesn't work" (roadmap §5)."""
+    """The first thing to check when "it doesn't work" (roadmap §5).
+
+    ``checks`` is the deepened view (B-155): database engine,
+    job-queue shape, configured drivers, and the storage
+    probe — the numbers RUNBOOK.md's five failures key on.
+    """
 
     status: str
     version: str
     database: str
+    checks: dict = {}
 
 
 class MetaResponse(BaseModel):

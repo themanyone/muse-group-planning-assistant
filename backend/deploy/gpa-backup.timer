@@ -1,0 +1,16 @@
+# Group Planning Assistant — nightly backup timer (roadmap B-153).
+#
+# Installed by deploy/install.sh as /etc/systemd/system/
+# gpa-backup.timer; enable with `systemctl enable --now
+# gpa-backup.timer`. 03:15 local: after the nightly
+# retention sweep, before anyone's morning.
+[Unit]
+Description=Nightly GPA backup bundle (B-146 backup, B-153 timer)
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+Unit=gpa-backup.service
+
+[Install]
+WantedBy=timers.target

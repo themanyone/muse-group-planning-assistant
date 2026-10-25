@@ -536,23 +536,48 @@ def erase_group(
             storage.delete(key)
             removed += 1
 
-    # Compact: a deleted row's bytes linger in free pages and
-    # the WAL until the file is vacuumed — erasure means the
-    # FILE no longer carries the group's words either.
+    # End the request session's transaction BEFORE compacting.
+    # The storage sweep above read through this session, and
+    # an open transaction holds its locks: on PostgreSQL the
+    # compact step's VACUUM (FULL) needs exclusive locks on
+    # those very tables, on a separate connection — session
+    # waits for the request, vacuum waits for the session,
+    # and erasure hangs forever (found by the B-152 parity
+    # run: pg_stat_activity showed the VACUUM blocked on the
+    # session's own tombstone read). Everything this session
+    # wrote is already committed (deletes, then the audit
+    # row); this commit only lets the read transaction go.
+    db.commit()
+
+    # Compact: a deleted row's bytes linger past the DELETE —
+    # in SQLite's free pages and WAL, in PostgreSQL's heap —
+    # and erasure means the stored bytes themselves go, not
+    # just the rows. The step is dialect-shaped (B-152):
+    #
+    # * SQLite: checkpoint, VACUUM, checkpoint again. The
+    #   vacuum's own output travels through the WAL like any
+    #   other write, and on newer SQLite builds the raw main
+    #   file still shows the PRE-vacuum image until a
+    #   checkpoint settles it (the B-146 restore drill caught
+    #   exactly this: logically erased, raw bytes stale). The
+    #   second checkpoint makes the file on disk BE the
+    #   vacuumed image, WAL empty — the acceptance test reads
+    #   that raw file.
+    # * PostgreSQL: there is no single database file to read
+    #   back, so the file-grep acceptance is SQLite's by
+    #   nature. The honest equivalent here is VACUUM (FULL):
+    #   it rewrites every table file, so heap pages that held
+    #   the erased tuples are written fresh without them.
     connection = database.engine.connect().execution_options(
         isolation_level="AUTOCOMMIT"
     )
     try:
-        connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
-        connection.exec_driver_sql("VACUUM")
-        # The vacuum's own output travels through the WAL
-        # like any other write, and on newer SQLite builds
-        # the raw main file still shows the PRE-vacuum image
-        # until a checkpoint settles it (the B-146 restore
-        # drill caught exactly this: logically erased, raw
-        # bytes stale). Checkpoint once more so the file on
-        # disk IS the vacuumed image and the WAL is empty.
-        connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        if database.engine.dialect.name == "sqlite":
+            connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+            connection.exec_driver_sql("VACUUM")
+            connection.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        elif database.engine.dialect.name == "postgresql":
+            connection.exec_driver_sql("VACUUM (FULL)")
     finally:
         connection.close()
 

@@ -770,6 +770,7 @@ export interface HealthBoardEntryResponse {
 }
 
 export interface HealthResponse {
+  checks?: Record<string, unknown>;
   database: string;
   status: string;
   version: string;

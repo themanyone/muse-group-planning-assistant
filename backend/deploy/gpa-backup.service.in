@@ -1,0 +1,30 @@
+# Group Planning Assistant — backup bundle run (roadmap B-153).
+#
+# A TEMPLATE: deploy/install.sh renders @PREFIX@, @USER@ and
+# @CONFIG@ into /etc/systemd/system/gpa-backup.service.
+# Triggered nightly by gpa-backup.timer. Runs the B-146
+# backup script with NO --out, so each run lands in its own
+# timestamped bundle under @PREFIX@/backups — a bundle that
+# scripts/restore.py can verify and place. (SQLite
+# deployments; a PostgreSQL deployment backs its database up
+# with the database's own tooling — see DEPLOYMENT.md.)
+[Unit]
+Description=Group Planning Assistant — nightly backup bundle (B-146)
+Documentation=file:@PREFIX@/DEPLOYMENT.md
+After=network.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@
+EnvironmentFile=@CONFIG@/gpa.env
+StandardOutput=journal
+StandardError=journal
+ExecStart=@PREFIX@/.venv/bin/python @PREFIX@/scripts/backup.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@PREFIX@/data @PREFIX@/backups

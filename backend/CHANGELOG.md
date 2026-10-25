@@ -426,3 +426,53 @@ are the roadmap's own words; phases are grouped in build order.
   (2) A cold tree could not open its database: no `data/`
   directory exists in a clean unzip, and `Database` now
   guarantees the file's parent directory (`src/gpa/db.py`)
+
+
+### Phase 15 — Deployment and operations — B-152 → B-156
+
+- **B-152** — PostgreSQL promotion (D-06): `psycopg[binary]`
+  joins the runtime dependencies; `migrations/env.py` honours
+  an explicit `config.attributes["database_url"]` override;
+  `scripts/migrate_to_postgres.py` moves a SQLite deployment
+  to Postgres with per-table row-count AND SHA-256 content
+  verification and plain-words refusals. Erasure's compact is
+  dialect-branched (Postgres: `VACUUM (FULL)`). A real parity
+  suite (`tests/test_postgres_parity.py`) plus a conftest PG
+  mode prove the same code on both engines. Defect found by
+  the parity run and fixed at root: erasure deadlocked on
+  Postgres (the request session's read transaction vs the
+  compact connection's exclusive locks); the session now
+  ends its transaction before compacting.
+- **B-153** — Native service packaging (D-24, no Docker):
+  `deploy/` systemd unit templates (API, worker, backup),
+  the daily backup timer, a logrotate snippet, and
+  `install.sh` — dedicated user, uv venv from the lock, env
+  file at 0640 and never overwritten, units enabled not
+  started. Rehearsed end-to-end into a throwaway prefix.
+- **B-154** — Reverse-proxy + TLS guide: Caddy and nginx
+  examples plus `deploy/PROXY.md` (HSTS, B-141-matched body
+  limits, unbuffered SSE, secret-bearing paths called out,
+  feed tokens kept out of logs). Followed literally in a
+  live Caddy test deploy; the nginx example ships reviewed
+  (no nginx binary obtainable in the build environment —
+  recorded in PROXY.md).
+- **B-155** — Observability: `/health` deepened
+  (`HealthResponse.checks`, additive; database + engine,
+  job-queue shape with `stuck_running`, configured drivers,
+  a real storage probe; `down` answers 503 in the same
+  body). Disclosure reconciled with the Phase 13 threat
+  model at this phase's gate: the deep checks go to
+  signed-in callers only; anonymous callers keep the
+  minimal liveness answer. `RUNBOOK.md` — the five real failures with exact
+  fixes — and `scripts/requeue_stuck_jobs.py`, the fix for
+  orphaned running jobs. A schema-less database no longer
+  makes /health 500 (found by this slice's tests).
+- **B-156** — Upgrade path: `scripts/upgrade.py`
+  (stage+build → verified backup → migrate → smoke → swap;
+  rollback is "restore the backup," stated plainly) and
+  `scripts/upgrade_drill.py`. The v0.4 → v0.5 ZIP-to-ZIP
+  drill passed and caught two boot-killers, both fixed:
+  editable-install `.pth` orphaning, and path-bound venv
+  shebangs — staged venvs build `--no-editable`
+  (`deploy/install.sh` too) and the serving venv is rebuilt
+  at its final address.

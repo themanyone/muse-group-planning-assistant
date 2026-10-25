@@ -138,3 +138,111 @@ uses `uv sync --extra dev`, the project's documented install
 (a bare sync is runtime-only and the suite finds no runner);
 and the contract snapshot must be current before the drill's
 suite step can be green.
+
+
+## PostgreSQL promotion (B-152)
+
+SQLite is the default and the demo engine. A deployment
+that outgrows one file promotes to PostgreSQL without a
+code change — the same models, the same migrations:
+
+1. Install PostgreSQL (the platform's package; this
+   project's rule is native installs, never Docker) and
+   create an empty database and a role that owns it.
+2. Build the schema there through Alembic:
+   `GPA_DATABASE_URL=postgresql+psycopg://… uv run alembic upgrade head`
+   (or let the mover do it — next step does).
+3. Move the data with verification:
+   `uv run python scripts/migrate_to_postgres.py --from sqlite:////path/to/gpa.db --to postgresql+psycopg://…`
+   The mover refuses a non-SQLite source, a non-PostgreSQL
+   target, or a non-empty target; copies every table in
+   foreign-key order; and verifies per-table row counts AND
+   a SHA-256 content hash, printing the table-by-table
+   report. A mismatch exits non-zero and says which table.
+4. Point `GPA_DATABASE_URL` at Postgres and restart. The
+   SQLite file stays where it was — it is the way back.
+
+Parity is not a claim: `tests/test_postgres_parity.py`
+runs the migration chain, the mover, the core flow and an
+erasure against a live server, and the whole suite runs in
+Postgres mode with `GPA_TEST_PG_URL` set (the gate record
+is in TEST_REPORT.md's Phase 15 addendum). One honest
+boundary: the backup bundle (below) is a SQLite-file
+artifact; on Postgres, back up with the platform's own
+dump discipline (`pg_dump`) on the same daily cadence.
+
+## Native install (B-153)
+
+A clean machine installs from the script alone (no
+Docker, per D-24):
+
+```bash
+sudo deploy/install.sh /path/to/unpacked-release
+```
+
+It creates a dedicated `gpa` service user, copies the tree
+to `/opt/gpa`, builds the venv from the lockfile with uv,
+writes `/etc/gpa/gpa.env` with a generated secret at
+**0640 root:gpa** (an existing env file is left untouched —
+rotation is deliberate), renders the systemd units from
+`deploy/*.in` (API, worker, daily backup timer), and
+**enables without starting**: the operator starts it on
+purpose after reading the env file. Knobs for rehearsal
+and non-standard layouts are documented at the top of the
+script (`GPA_PREFIX`, `GPA_CONFIG_DIR`, `GPA_SYSTEMD_DIR`,
+`GPA_SERVICE_USER`, `GPA_SKIP_USER`, `GPA_SKIP_SYSTEMD`).
+Units log to the journal; `deploy/gpa.logrotate` covers
+the file-log override posture.
+
+## Reverse proxy & TLS (B-154)
+
+The API binds 127.0.0.1; the world reaches it through the
+proxy. `deploy/PROXY.md` is the guide — Caddy and nginx
+examples, HSTS, body limits matched to the app's own
+upload cap, unbuffered SSE, and every secret-bearing path
+(feed/invite/email-in tokens, signed webhooks) called out
+with its rule. Follow it literally; it was written from a
+test deploy that did.
+
+## Observability (B-155)
+
+`GET /health` is the operator's first look: its `checks`
+block reports the database (and which engine), the job
+queue's shape (including `stuck_running` — jobs orphaned
+by a dead worker), the configured AI/mail drivers, and a
+real storage write/read/delete probe. `ok` / `degraded` /
+`down`; `down` answers 503 in the same body. Disclosure:
+the status word is public, but the deep `checks` go only
+to a signed-in caller — anonymous callers receive the
+minimal liveness answer (the Phase 13 threat model owns
+that surface; engine names and error details are
+operational data, not a public fingerprint). Production
+logs are JSON lines carrying `request_id`; **RUNBOOK.md**
+(one page: mail down, AI quota, disk full, token expired,
+job stuck — symptom, health signature, exact fix, plus the
+log queries) is the second look. The stuck-job fix is
+`scripts/requeue_stuck_jobs.py` (list first; `--apply`
+returns orphans to the queue).
+
+## Upgrades (B-156)
+
+```bash
+uv run python scripts/upgrade.py --zip releases/gpa-backend-vX.Y-DATE.zip \
+    [--root /opt/gpa] [--env-file /etc/gpa/gpa.env]
+```
+
+In the roadmap's order: the new tree is staged and built
+beside the installation; a backup bundle is taken and
+hash-verified (nothing mutates before it exists); the new
+tree's migrations run against the live database; the
+staged server smokes against the real data and must answer
+/health ok; then the swap — the old tree kept whole at
+`<root>.previous-<stamp>`, data/backups/.env carried over,
+and the serving venv rebuilt in place (a venv is
+path-bound; the staged one was scaffolding). Restart the
+services when the script says to. **Rollback is "restore
+the backup," plainly:** swap the two directories back and
+place the bundle with `scripts/restore.py` (the exact
+commands print at the end of every upgrade run).
+`scripts/upgrade_drill.py` is the standing proof between
+two real ZIPs; its latest record is in TEST_REPORT.md.

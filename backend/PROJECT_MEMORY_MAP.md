@@ -23,11 +23,14 @@ uv run alembic upgrade head   # migration path (GPA_DATABASE_URL)
 ```
 
 Verified 2026-10-24: fresh `uv sync` → `./run.sh` → `/health` ok;
-Alembic up/down/up clean; **853 tests, all passing** (151/350 slices:
-Phases 0–14 complete) — the count taken from one clean full run
-against the B-151 tree 2026-10-25 (841 at the B-149 checkpoint +
-8 B-150 + 3 B-151 guard + 1 B-151 regression = 853, reconciled
-from the run's own log). ZIP-Beta cut at the Phase 8 gate
+Alembic up/down/up clean; **877 tests passing on SQLite and 865
+on PostgreSQL, 0 failed on either** (156/350 slices: Phases 0–15
+complete) — counts from the Phase 15 gate runs against the final
+Phase 15 tree 2026-10-25 (881 collected on both engines = 853 at
+the Phase 14 gate + 28 new Phase 15 tests; the engines' passed
+delta is exactly their skip delta — parity tests skip on
+SQLite, named SQLite-file tests skip on PG; details and the
+two-halves method in TEST_REPORT's Phase 15 addendum). ZIP-Beta cut at the Phase 8 gate
 (releases/gpa-backend-v0.3-2026-10-24.zip, §8 anatomy); ZIP-RC cut
 at the Phase 12 gate (releases/gpa-backend-v0.4-2026-10-25.zip,
 §8 anatomy) — Phases 9–12 fold into it; **ZIP-Final cut at the
@@ -1346,8 +1349,105 @@ parses the model so it cannot drift from the code.
   (841 + 12 new, reconciled). Contract unchanged: 187 paths /
   217 schemas.
 
+### Phase 15 — Deployment and operations (B-152 → B-156): ✅ COMPLETE (2026-10-25)
+- **B-152 PostgreSQL promotion** (`4ca7caa`): D-06 executed.
+  `psycopg[binary]` is a runtime dependency (a Postgres deployment
+  needs its driver at runtime). `scripts/migrate_to_postgres.py`
+  moves a SQLite deployment to Postgres: refuses wrong directions
+  and non-empty targets in plain words, builds the target schema
+  through Alembic (env.py now honours
+  `config.attributes["database_url"]`), copies in FK order, and
+  verifies every table's row count AND a SHA-256 content hash.
+  All PKs are UUID strings — no sequences to resync (checked, not
+  assumed). Erasure's compact is dialect-branched (SQLite keeps
+  checkpoint→VACUUM→checkpoint; Postgres runs `VACUUM (FULL)`).
+  **Parity is real**: `tests/test_postgres_parity.py` (4 tests)
+  runs against a live PostgreSQL 16.2 server (binaries from the
+  `pgserver` pip wheel, a throwaway cluster under
+  `~/workspace/.verify-tmp/`, user `pgdev`, port 54329), and
+  conftest's PG mode (`GPA_TEST_PG_URL`) runs the whole suite
+  against one scratch database; SQLite-file tests are named in
+  `PG_FILE_TESTS` and skip there with pointers to where their
+  guarantee is re-proven. **Defect found by the parity run**:
+  group erasure deadlocked on Postgres — the request session's
+  storage-sweep read transaction held locks the compact
+  connection's `VACUUM (FULL)` needed (pg_stat_activity showed
+  the pair). `erase_group` now ends the session's transaction
+  before compacting.
+- **B-153 native service packaging** (`f24c5a2`): `deploy/` —
+  three systemd unit templates (API/worker/backup) + daily
+  backup timer + logrotate snippet + `install.sh` (dedicated
+  user, uv venv from the lock, env file generated at 0640
+  root:service-user and never overwritten, units enabled but
+  NOT started). No Docker (D-24). Rehearsed for real into a
+  throwaway prefix: env proven 0640, units pass
+  `systemd-analyze verify`, installed tree boots and answers
+  /health. Pi-class and cloud-VM installs: NOT RUN HERE (no
+  such machines reachable) — the exact invocation is in
+  TEST_REPORT's Phase 15 addendum.
+- **B-154 reverse-proxy + TLS guide** (`7e9b551`):
+  `deploy/Caddyfile.example`, `deploy/nginx.conf.example`,
+  `deploy/PROXY.md` — HSTS, body limit matched to B-141
+  (10 MiB), SSE unbuffered, every secret-bearing path called
+  out (feed/invite/email-in tokens, signed webhooks — HMAC
+  over the RAW body). **Followed literally in a live test
+  deploy** with real Caddy v2.11.7: /health 200 over HTTP/2
+  with HSTS, an 11 MiB body refused 413 by Caddy itself, a
+  feed request reaching the app while the access log records
+  `calendar/feed/REDACTED` and the token appears nowhere.
+  nginx: no binary obtainable here (apt has no network) —
+  the example ships reviewed, live validation NOT RUN, stated
+  in PROXY.md.
+- **B-155 observability** (`22c08cd`): `services/health.py`
+  deepens /health (database + engine, jobs shape with
+  `stuck_running`, configured drivers as facts, a real storage
+  probe; ok/degraded/down, down = 503 in the same body;
+  `HealthResponse.checks` additive — contract still 187/217).
+  Its own tests found and fixed a real gap: the jobs query was
+  unguarded, so a schema-less database made /health 500
+  instead of reporting down. And the phase gate reconciled
+  the deepening with Phase 13's threat model: the deep
+  checks are disclosed to signed-in callers only — anonymous
+  /health keeps the minimal liveness surface its leak test
+  pins (`9d8d7cd`; the gate's one failure, fixed forward). `scripts/requeue_stuck_jobs.py`
+  is the operator fix for orphaned running jobs (the chassis
+  only claims `queued` rows). `RUNBOOK.md`: the five real
+  failures (mail down, AI quota, disk full, token expired,
+  job stuck) with exact fixes + the JSON-log queries.
+  `tests/test_runbook.py` reproduces all five from
+  deliberately broken boxes (a real 1 MB tmpfs filled for
+  disk-full; a token born expired — negative minutes, since a
+  zero-minute token still validates inside its birth second).
+- **B-156 upgrade path** (`fa09b2e`): `scripts/upgrade.py` —
+  stage+build → backup (current tree's script, or the staged
+  tree's when the install predates backup tooling — v0.4 has
+  none; bundle hash-verified against the real B-146 manifest
+  shape) → migrate the live DB → smoke the staged server
+  against real data → swap (old tree kept as `.previous-*`,
+  data/backups/.env carried) → serving venv rebuilt in place.
+  Rollback = "restore the backup," printed every run. The
+  **drill between the two real ZIPs (v0.4 → v0.5) passed**
+  (upgrade 12.8 s; stamp none → `0016_phase13_privacy`; marker
+  user/group intact and logging in through the new tree) and
+  caught two boot-killers, both fixed at root: uv's default
+  editable install is a `.pth` naming the staging path, and a
+  venv's console-script shebangs are absolute — so staged
+  venvs are built `--no-editable` (install.sh too) and the
+  serving venv is born at its final address.
+- Phase 15 gate: suite run on BOTH engines from the phase's
+  final tree — **SQLite 877 passed / 4 skipped, PostgreSQL
+  865 passed / 16 skipped, 0 failed on either, 881
+  collected** (= 853 + 28 new, reconciled). The gate caught
+  and fixed forward: the /health disclosure collision with
+  Phase 13's threat model (`9d8d7cd` + snapshot regen
+  `ce9028d`), the PG skip-list's missing pragma test
+  (`9263ca4`), PG isolation vs module-scoped worlds
+  (`f9ce3a2`), and Alembic's fileConfig silencing the
+  app's loggers (`612ba7d`) — all recorded in TEST_REPORT's
+  Phase 15 addendum.
+
 ### Later phases: NOT STARTED (per roadmap order)
-Phase 15 begins at B-152.
+Phase 16 begins at B-157.
 
 ## Decisions & deviations (from the roadmap defaults)
 

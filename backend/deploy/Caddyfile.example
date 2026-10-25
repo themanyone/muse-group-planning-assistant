@@ -1,0 +1,52 @@
+# Group Planning Assistant — Caddy reverse proxy (roadmap B-154).
+#
+# Caddy is the one-command path: it fetches and renews the
+# TLS certificate itself (Let's Encrypt) and redirects HTTP
+# to HTTPS. Copy to /etc/caddy/Caddyfile, replace the site
+# address, reload. The full guide is deploy/PROXY.md.
+#
+# Two rules this file enforces that the guide explains:
+#   1. The request-body limit MATCHES the app's upload limit
+#      (GPA_MAX_UPLOAD_BYTES, default 10 MiB = 10485760) — the
+#      proxy refuses an oversize body before the app sees it.
+#   2. The access log NEVER carries a feed token: the log
+#      filter below rewrites the token path segment. Tokens
+#      ride in URLs on the feed/invite/email-in paths in this
+#      product; a log file must not become a copy of them
+#      (the app itself holds the same line — B-145).
+
+planning.example.org {
+
+	# Automatic HTTPS. HSTS: once a browser has seen this
+	# site over TLS, it refuses plain HTTP for a year.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# Access log with the feed-token segment redacted.
+	log {
+		output file /var/log/caddy/gpa-access.log
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp `calendar/feed/[^./]+` "calendar/feed/REDACTED"
+			}
+		}
+	}
+
+	# The event stream (SSE) must not be buffered: frames go
+	# out as the app emits them, or the UI feels frozen.
+	@stream path /api/v1/groups/*/stream
+	handle @stream {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		request_body {
+			max_size 10485760
+		}
+		reverse_proxy 127.0.0.1:8000
+	}
+}

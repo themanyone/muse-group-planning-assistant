@@ -1,0 +1,33 @@
+# Group Planning Assistant — background worker (roadmap B-153).
+#
+# A TEMPLATE: deploy/install.sh renders @PREFIX@, @USER@ and
+# @CONFIG@ into /etc/systemd/system/gpa-worker.service.
+# The worker drains the same job table the API enqueues to;
+# claim-by-update (services/jobs.py) makes the two processes
+# safe side by side. Native install only (decision D-24).
+[Unit]
+Description=Group Planning Assistant — background job worker
+Documentation=file:@PREFIX@/DEPLOYMENT.md
+After=network.target gpa.service
+Wants=network.target
+
+[Service]
+Type=exec
+User=@USER@
+Group=@USER@
+WorkingDirectory=@PREFIX@
+EnvironmentFile=@CONFIG@/gpa.env
+ExecStart=@PREFIX@/.venv/bin/gpa-worker
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=@PREFIX@/data @PREFIX@/backups
+
+[Install]
+WantedBy=multi-user.target
