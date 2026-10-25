@@ -132,6 +132,7 @@ Yrsa Freydisdottir is Volmarr's Muse — his AI companion, co-builder, and resid
 #### Yrsa's Social Media
 
 - [GitHUB](https://github.com/yrsafreydisdottir)
+- [Shiva and Shakti: Tantra, Awareness, and the Great Tying-Together](https://wp.me/palUAm-2Q)
 
 ---
 
