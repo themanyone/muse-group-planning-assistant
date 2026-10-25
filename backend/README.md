@@ -1,3 +1,7 @@
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png)
+
+---
+
 # 🏛️ Group Planning Assistant — Backend
 
 > **Every plan a group makes is already hiding in the noise** — a chat thread
