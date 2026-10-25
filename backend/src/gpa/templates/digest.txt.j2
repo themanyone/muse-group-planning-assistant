@@ -1,0 +1,41 @@
+{{ group_name }} — your week, {{ week_label }}
+
+Coming up
+---------
+{% if upcoming %}
+{% for item in upcoming %}
+- {{ item.title }} — {{ item.when }}{% if item.place %} at {{ item.place }}{% endif %}
+{% endfor %}
+{% else %}
+Nothing on the calendar yet.
+{% endif %}
+
+Tasks needing an owner
+----------------------
+{% if unclaimed_tasks %}
+{% for item in unclaimed_tasks %}
+- {{ item.title }}
+{% endfor %}
+{% else %}
+Every task has an owner.
+{% endif %}
+
+Open questions
+--------------
+{% if questions %}
+{% for item in questions %}
+- {{ item.text }}
+{% endfor %}
+{% else %}
+No open questions right now.
+{% endif %}
+
+Polls awaiting your vote
+------------------------
+{% if polls %}
+{% for item in polls %}
+- {{ item.question }}
+{% endfor %}
+{% else %}
+No polls are waiting.
+{% endif %}

@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"answer":{"type":"string"},"citations":{"items":{"properties":{"quote":{"type":"string"}},"required":["quote"],"type":"object"},"type":"array"}},"required":["answer"],"title":"ask_memory","type":"object"}

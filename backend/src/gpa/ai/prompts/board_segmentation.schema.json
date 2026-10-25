@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"regions":{"items":{"properties":{"box":{"items":{"type":"number"},"type":"array"},"label":{"type":["string","null"]}},"required":["box"],"type":"object"},"type":"array"}},"required":["regions"],"title":"board_segmentation","type":"object"}

@@ -1,0 +1,48 @@
+{
+  "prompts": {
+    "ask_memory": {
+      "sha256": "13b4bd2a60f8de5fbb9912ee718021eed6ccf59b2a0a489abbea56e35e4d393b",
+      "version": 1
+    },
+    "board_segmentation": {
+      "sha256": "686cced6f005552f588d483a8d41c7493d63bd2d854e1c07382e3aa2f93b2e6a",
+      "version": 1
+    },
+    "briefing": {
+      "sha256": "2a5b938f7bfa7488ec675a2409d00da7a51adc72524bbc807c9bfab5c75751f4",
+      "version": 1
+    },
+    "extraction": {
+      "sha256": "9e7801814499d2780af940de624b36bcb40dfda604dd2290faa1e8cf20311f48",
+      "version": 1
+    },
+    "extraction_changes": {
+      "sha256": "c26c7b1011477fe972bdb0b0232faad7ff96b1a8c71dfa282e94a96f08685a82",
+      "version": 1
+    },
+    "extraction_decisions": {
+      "sha256": "343e21ad2edb2d6a35fddb8243a48a92b014ea4f410a97bfcbe24738609e4ce2",
+      "version": 1
+    },
+    "extraction_questions": {
+      "sha256": "f7584f8f64f8888b2539e2aaa79963d83ddeab037751eb4f19c1c46ff6528173",
+      "version": 1
+    },
+    "extraction_tasks": {
+      "sha256": "83119a246a5d83a34013021fb3f76f897e8a86a8e4f103d0ba44aa77be13b7e3",
+      "version": 1
+    },
+    "flyer_reading": {
+      "sha256": "d923dd78a8b33737f2e0f9667c36852b026b34a289365c33283b13da63abcc5f",
+      "version": 2
+    },
+    "reminder_wording": {
+      "sha256": "199991bd9dcb4752de7726d2df748bce4d8845867031b9f121400d76c0866111",
+      "version": 1
+    },
+    "summary": {
+      "sha256": "ec99d58c7bc5060ef2d3c631d084c64623c3dd5a81a915e62a23c1334bf6e31f",
+      "version": 1
+    }
+  }
+}

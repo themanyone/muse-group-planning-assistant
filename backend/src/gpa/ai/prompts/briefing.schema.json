@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"open_questions":{"items":{"type":"string"},"type":"array"},"text":{"type":"string"}},"required":["text"],"title":"briefing","type":"object"}

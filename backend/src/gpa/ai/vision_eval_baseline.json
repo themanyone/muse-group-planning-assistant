@@ -1,0 +1,1 @@
+{"by_type":{"clean":1.0,"glare":0.75,"handwriting":0.75,"rotated":0.75},"note":"Vision evaluation baseline (B-073), recorded from the harness's first honest run against the deliberately imperfect corpus. The gate tolerance is 0.02, as in B-046: a drop beyond it fails the suite and must be explained, never silently re-baselined.","overall_accuracy":0.8125}

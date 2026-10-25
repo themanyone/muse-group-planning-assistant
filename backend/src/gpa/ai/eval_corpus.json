@@ -1,0 +1,203 @@
+{
+  "cases": [
+    {
+      "id": "golden-club-night",
+      "group_timezone": "America/New_York",
+      "source_created_at": "2026-10-21T23:02:00",
+      "chunks": [
+        {
+          "position": 0,
+          "sender": "Ana",
+          "sent_at": "2026-10-21T23:02:00",
+          "text": "Club night is on! this Saturday at the hall, doors 7pm"
+        },
+        {
+          "position": 1,
+          "sender": "Ben",
+          "sent_at": "2026-10-21T23:03:00",
+          "text": "I can bring the projector"
+        },
+        {
+          "position": 2,
+          "sender": "Cleo",
+          "sent_at": "2026-10-21T23:04:00",
+          "text": "I'll sort the playlist again"
+        },
+        {
+          "position": 3,
+          "sender": "Ana",
+          "sent_at": "2026-10-21T23:05:00",
+          "text": "Agreed with the committee: the quiz is postponed to November"
+        },
+        {
+          "position": 4,
+          "sender": "Ben",
+          "sent_at": "2026-10-21T23:06:00",
+          "text": "Quick question — who is doing the door rota this time?"
+        }
+      ],
+      "answers": {
+        "event": {
+          "items": [
+            {
+              "fields": {
+                "title": {
+                  "value": "Club night",
+                  "confidence": 0.95,
+                  "quote": "Club night is on!"
+                },
+                "starts": {
+                  "value": "this Saturday 7pm",
+                  "confidence": 0.9,
+                  "quote": "this Saturday",
+                  "date_phrase": "this Saturday",
+                  "time_phrase": "7pm"
+                },
+                "place": {
+                  "value": "the hall",
+                  "confidence": 0.85,
+                  "quote": "at the hall"
+                },
+                "host": {
+                  "value": null,
+                  "confidence": 0.0,
+                  "quote": ""
+                }
+              }
+            }
+          ]
+        },
+        "task": {
+          "items": [
+            {
+              "fields": {
+                "title": {
+                  "value": "Bring the projector",
+                  "confidence": 0.9,
+                  "quote": "bring the projector"
+                },
+                "owner": {
+                  "value": "Ben",
+                  "confidence": 0.85,
+                  "quote": "I can bring the projector"
+                }
+              }
+            }
+          ]
+        },
+        "decision": {
+          "items": [
+            {
+              "fields": {
+                "text": {
+                  "value": "the quiz is postponed to November",
+                  "confidence": 0.92,
+                  "quote": "the quiz is postponed to November"
+                }
+              }
+            }
+          ]
+        },
+        "question": {
+          "items": [
+            {
+              "fields": {
+                "text": {
+                  "value": "who is doing the door rota this time?",
+                  "confidence": 0.9,
+                  "quote": "who is doing the door rota this time?"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "event": [
+          {
+            "fields": {
+              "title": "Club night",
+              "starts": "2026-10-24",
+              "place": "the hall",
+              "host": null
+            }
+          }
+        ],
+        "task": [
+          {
+            "fields": {
+              "title": "Bring the projector",
+              "owner": "Ben"
+            }
+          }
+        ],
+        "decision": [
+          {
+            "fields": {
+              "text": "the quiz is postponed to November"
+            }
+          }
+        ],
+        "question": [
+          {
+            "fields": {
+              "text": "who is doing the door rota this time?"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "quiz-night-imperfect",
+      "group_timezone": "UTC",
+      "source_created_at": "2026-10-22T18:00:00",
+      "chunks": [
+        {
+          "position": 0,
+          "sender": "Dana",
+          "sent_at": "2026-10-22T18:00:00",
+          "text": "Quiz night returns next Friday at the hall, £3 entry, bring a pen"
+        }
+      ],
+      "answers": {
+        "event": {
+          "items": [
+            {
+              "fields": {
+                "title": {
+                  "value": "Quiz night",
+                  "confidence": 0.9,
+                  "quote": "Quiz night returns"
+                },
+                "starts": {
+                  "value": "next Friday",
+                  "confidence": 0.88,
+                  "quote": "next Friday",
+                  "date_phrase": "next Friday",
+                  "time_phrase": null
+                },
+                "place": {
+                  "value": "the barn",
+                  "confidence": 0.7,
+                  "quote": "at the hall"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "event": [
+          {
+            "fields": {
+              "title": "Quiz night",
+              "starts": "2026-10-30",
+              "place": "the hall",
+              "cost": "£3 entry"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

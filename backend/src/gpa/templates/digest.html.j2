@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{{ group_name }} — your week</title></head>
+<body>
+<h1>{{ group_name }} — your week, {{ week_label }}</h1>
+
+<h2>Coming up</h2>
+{% if upcoming %}
+<ul>
+{% for item in upcoming %}
+<li>{{ item.title }} — {{ item.when }}{% if item.place %} at {{ item.place }}{% endif %}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>Nothing on the calendar yet.</p>
+{% endif %}
+
+<h2>Tasks needing an owner</h2>
+{% if unclaimed_tasks %}
+<ul>
+{% for item in unclaimed_tasks %}
+<li>{{ item.title }}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>Every task has an owner.</p>
+{% endif %}
+
+<h2>Open questions</h2>
+{% if questions %}
+<ul>
+{% for item in questions %}
+<li>{{ item.text }}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No open questions right now.</p>
+{% endif %}
+
+<h2>Polls awaiting your vote</h2>
+{% if polls %}
+<ul>
+{% for item in polls %}
+<li>{{ item.question }}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No polls are waiting.</p>
+{% endif %}
+</body>
+</html>

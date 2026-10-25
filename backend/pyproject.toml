@@ -1,0 +1,61 @@
+# Group Planning Assistant — backend project definition.
+#
+# This file is the single source of truth for the Python package: what
+# the code is called, what other packages it needs (as *installed*
+# dependencies only — roadmap D-46), and how the tools are configured.
+# There is deliberately NO licence field here: the project's licence
+# is undecided (roadmap D-25/D-46) and this file must not presume one.
+
+[project]
+name = "group-planning-assistant-backend"
+version = "0.1.0"
+description = "Group Planning Assistant — Python backend (planning from conversation, flyers, and newsletters, always with a human review queue)."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Web framework + server (roadmap D-02/D-03).
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    # Validation + settings (D-04); one schema layer validates API
+    # input, AI output, and test fixtures alike.
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    # Database: SQLAlchemy 2.0 models + Alembic migrations (D-07).
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    # HTTP client — used by tests and by outbound integrations.
+    "httpx>=0.27",
+    # Image handling for flyer/board uploads (later phases).
+    "pillow>=10.3",
+    # RFC 5545 calendar output (D-20).
+    "icalendar>=5.0",
+    # Password hashing: Argon2id (B-011; choice recorded in
+    # PROJECT_MEMORY_MAP.md — argon2-cffi over pwdlib for its direct,
+    # dependency-light binding to the reference Argon2 library).
+    "argon2-cffi>=23.1",
+    "jinja2>=3.1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+]
+
+[project.scripts]
+# One command to run the background worker on its own, for operators
+# who run the service split across processes (roadmap Phase 20/26:
+# the service must be happy living in the background).
+gpa-worker = "gpa.worker:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gpa"]
+
+[tool.pytest.ini_options]
+# Tests live in tests/ and import the package from src/ (uv sync
+# installs it editable, so no path tricks are needed here).
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

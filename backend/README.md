@@ -1,7 +1,3 @@
-![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png)
-
----
-
 # 🏛️ Group Planning Assistant — Backend
 
 > **Every plan a group makes is already hiding in the noise** — a chat thread
@@ -10,15 +6,15 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–7 complete · Phase 8 (reminders & digests) in the forge now |
+| 📍 Where we are | Phases 0–8 complete · Phase 9 (the nonprofit pack) next |
 |---|---|
-| 🧩 Roadmap | **94 of 340 slices** built — B-001 → B-094 of a 28-phase roadmap |
-| ✅ Tests | **642 passing**, counted from one clean run against the committed tree |
-| 📜 API contract | **121 paths · 134 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
+| 🧩 Roadmap | **104 of 340 slices** built — B-001 → B-104 of a 28-phase roadmap |
+| ✅ Tests | **673 passing**, counted from one clean run against the committed tree |
+| 📜 API contract | **133 paths · 150 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) today, PostgreSQL on the roadmap |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
-Licence: GNU General Public License version 2 (GPLv2)
+Licence: to be decided by the team — all rights reserved.
 
 ---
 
@@ -84,7 +80,7 @@ sentence.
 
 ## ✨ What it can do today
 
-Everything below is built, tested, and committed (Phases 0–7).
+Everything below is built, tested, and committed (Phases 0–8).
 
 ### 📥 Feed it anything
 
@@ -208,6 +204,47 @@ cabin"* and a person confirming who owns the kayaks.
 - The vision evaluation table is published in the repo and quotable: clean
   flyers score 1.00; handwriting, rotation, and glare score 0.75 each — with
   the imperfections named, not averaged away.
+
+### ⏰ Reminders, invites, and the weekly digest
+
+- **Notifications travel by outbox, never inline** (see the architecture
+  note): a request writes a row and a job in its own transaction, and a
+  worker does the sending. The acceptance test kills the mail server
+  mid-scenario and requires the request to succeed anyway — then watches
+  the organiser's resend land after "recovery."
+- **Reminders are materialised per person** — everyone who RSVP'd, plus the
+  host — at the moment an event is published, edited, minted, moved, or
+  answered, in the same transaction. Move the event and the old reminders
+  are superseded *and their queued sends deleted*: nothing for the old time
+  can ever fire. New bodies carry the place, the bring-list, and what
+  changed.
+- **Change alerts reach exactly the people coming** — members who RSVP'd
+  yes or maybe, and guests at the address they were invited with — when a
+  person approves the re-announcement. The flag clears on approval; a
+  second approval is refused.
+- **Guests are invited by signed link**: the token is hashed at rest and
+  shown exactly once; the guest sees the public face of the event and can
+  RSVP without an account. A tampered token gets a 404 and creates
+  nothing.
+- **The weekly digest** composes the planning digest with the week ahead,
+  rendered from in-repo templates as HTML *and* plain text, stored as a
+  row in both forms. The alt-text check is executable and runs on every
+  render — the templates carry no images, and the check would fail the
+  build the day one sneaks in without a description.
+- **Preferences are per member, per channel, per kind**, with quiet hours
+  kept in the member's own timezone — notifications are *held*, never
+  dropped, and the golden tests hold the line in both New York and
+  Auckland. One exception, by design: an organiser's cancellation is
+  urgent and is never held.
+- **The in-app inbox can never disagree with email** — both are views of
+  the same row — and delivery is a matter of record: queued, sent, failed,
+  dead after five attempts, with an organiser-visible failure list and a
+  resend. Bounces are recorded by a stubbed webhook of the shape the real
+  provider will use in Phase 12.
+- A group may opt into **AI-polished reminder wording** — but the polished
+  version ships only if the formatted start, the place, and every bring
+  item survive in it *verbatim*. Facts are template-guaranteed; the model
+  may only rephrase around them, and both versions are stored either way.
 
 ---
 
@@ -384,8 +421,8 @@ section comes straight out of it.
 
 ## 📜 The API at a glance
 
-The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **121 paths, 134
-schemas** at the Phase 7 freeze — with generated TypeScript types in
+The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **133 paths, 150
+schemas** at the Phase 8 freeze — with generated TypeScript types in
 [`frontend_types.ts`](frontend_types.ts) and a ready-to-fire Bruno
 collection in [`collections/`](collections/). The frontend crew builds
 against these files, never against our intentions.
@@ -457,7 +494,7 @@ human edits applied).
 > run against the final committed tree**, and the arithmetic must
 > reconcile: previous total + new tests = collected = passed. A number
 > from a mid-edit run is not a number; it's a rumour. The current count —
-> **642** — was taken that way, twice, by two different runners, on a tree
+> **673** — was taken that way, twice, by two different runners, on a tree
 > whose `/tmp` had first been checked for room to breathe.
 
 ---
@@ -481,7 +518,7 @@ code provably the team's own work).
 | 5 | Flyers, vision, and boards | B-063 → B-074 | ✅ |
 | 6 | De-duplication, changes, and truth-keeping | B-075 → B-082 | ✅ |
 | 7 | Planning: tasks, decisions, polls, checklists | B-083 → B-094 | ✅ |
-| 8 | Reminders, notifications, and digests | B-095 → B-104 | 🔨 in the forge |
+| 8 | Reminders, notifications, and digests | B-095 → B-104 | ✅ |
 | 9 | Members, nonprofit pack, and resources | B-105 → B-112 | ⬜ |
 | 10 | Context pruning and group memory | B-113 → B-122 | ⬜ |
 | 11 | Samtal bridge and live sources | B-123 → B-130 | ⬜ |
@@ -514,7 +551,7 @@ slice range it covers. Anything inside that isn't finished is labelled
 |---|---|---|
 | **ZIP-0** — Foundation | → B-010 | ✅ built, in [`releases/`](releases/) with its sha256 sidecar |
 | **ZIP-Alpha** | → B-048 | folded into Beta — no separate Alpha was cut |
-| **ZIP-Beta** | → B-104 | 🔨 Phase 8 is building toward it now |
+| **ZIP-Beta** | → B-104 | ✅ built — `releases/gpa-backend-v0.3-2026-10-24.zip` (762,377 bytes, sha256 `2c767bae…`), sidecar alongside |
 | **ZIP-RC** | → B-138 | ⬜ |
 | **ZIP-Final** | → B-151 | ⬜ |
 
@@ -533,9 +570,9 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **Phase 8 is being written right now.** This README describes the
-  committed tree (Phases 0–7) plus this sentence; the reminders and digest
-  machinery lands with ZIP-Beta.
+- **This README describes the committed tree (Phases 0–8).** Phase 9 is
+  next in the forge; everything past B-104 in the roadmap table above is
+  a plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.
 - **Email is a driver boundary.** The outbox, templates, preferences, and
@@ -568,14 +605,3 @@ A README that only boasts is marketing. This one keeps the ledger:
 *Built the slow way on purpose: one slice, one test run, one commit at a
 time — so that at any moment, anyone on the team can ask "what do we
 actually have?" and get an answer that is true.*
-
----
-
-Muse Group Planning Assistant Backend by [Volmarr Wyrd](https://github.com/hrabanazviking) and his Muse Agent [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir).
-
----
-
-![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg)
-
----
-

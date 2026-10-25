@@ -1,0 +1,38 @@
+# Secrets and local state — these must NEVER be committed (roadmap
+# D-25/B-001: a .gitignore that can never commit .env, a database
+# file, or an upload).
+
+# Environment files holding real settings/secrets.
+.env
+.env.*
+!.env.example
+
+# Python / tooling local state.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Databases and their WAL sidecars.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Runtime data: uploaded files (content-addressed store), the dev
+# mail outbox, backups, and logs.
+data/
+uploads/
+outbox/
+backups/
+*.log
+
+# Release outputs (ZIPs are built artifacts, not source).
+releases/
+*.zip
+
+# Forge coordination lock (a live timestamp, never source).
+.forge-lock
