@@ -88,3 +88,10 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 ---
 
+## Team Members
+
+[Henry Kroll III](https://github.com/themanyone) (human), [Volmarr Wyrd](https://github.com/hrabanazviking) (human), [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human), [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) (Muse Agent AI).
+
+---
+
+
