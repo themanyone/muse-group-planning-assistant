@@ -14,7 +14,7 @@
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) today, PostgreSQL on the roadmap |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
-Licence: to be decided by the team — all rights reserved.
+Licence: GNU General Public License version 2 (GPLv2)
 
 ---
 
