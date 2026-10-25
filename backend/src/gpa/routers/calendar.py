@@ -32,6 +32,19 @@ from gpa.services import recurrence as recurrence_service
 
 router = APIRouter(prefix="/api/v1/groups", tags=["calendar"])
 public_router = APIRouter(prefix="/api/v1", tags=["calendar"])
+embed_router = APIRouter(prefix="/api/v1", tags=["calendar"])
+
+
+class PublicPageResponse(BaseModel):
+    """The public page payload (B-135): a public-listed
+    group's face for its own website and for embeds — the
+    group's public facts and its events at the PUBLIC
+    projection (B-059). Nothing member-only exists here."""
+
+    slug: str
+    name: str
+    description: str = ""
+    events: list[EventResponse] = Field(default_factory=list)
 
 
 class FeedIssueRequest(BaseModel):
@@ -188,7 +201,7 @@ class MonthResponse(BaseModel):
 
 
 class ConflictFlag(BaseModel):
-    kind: str  # host_overlap | place_overlap | travel_impossible
+    kind: str  # host_overlap | place_overlap | travel_impossible | resource_overlap
     event_id: str
     occurrence_start: str
     other_event_id: str
@@ -197,15 +210,19 @@ class ConflictFlag(BaseModel):
     distance_km: float | None = None
     needed_minutes: int | None = None
     available_minutes: int | None = None
+    # Resource flags (B-108) name the double-booked item.
+    resource_id: str | None = None
+    resource_name: str | None = None
 
 
 class ConflictsResponse(BaseModel):
     flags: list[ConflictFlag]
-    # The honest boundary, on the response itself: resource
-    # double-booking needs Phase 9's resource model.
+    # Resource double-booking (B-108) rides the same flags:
+    # kind "resource_overlap", with the item named on the flag.
     resource_note: str = (
-        "Resource booking arrives in a later phase; "
-        "no resource conflicts are computed yet."
+        "Resource double-bookings appear above as resource_overlap "
+        "flags when two published events hold the same resource "
+        "over overlapping times."
     )
 
 
@@ -348,9 +365,20 @@ def public_events(slug: str, db: Session = Depends(get_db)):
     fields do not exist in this response (B-059). A group that
     is not public-listed is a 404 here, exactly as if it did
     not exist."""
+    group = _public_group(db, slug)
+    return _public_event_rows(db, group)
+
+
+def _public_group(db: Session, slug: str) -> Group:
+    """The public-listed group at a slug, or the public 404 —
+    a group that is not public-listed does not exist here."""
     group = db.query(Group).filter(Group.slug == slug).one_or_none()
     if group is None or group.visibility != "public-listed":
         raise AppError("not_found", detail="That group could not be found.")
+    return group
+
+
+def _public_event_rows(db: Session, group: Group) -> list[EventResponse]:
     rows = event_service.list_events(db, group, role="member")
     # The flyer face rides the public projection too (Phase 5):
     # the picture and its alt-text state are public facts, and a
@@ -361,3 +389,56 @@ def public_events(slug: str, db: Session = Depends(get_db)):
         project_event(event, "public", flyer=calendar_views.flyer_view(db, event))
         for event in rows
     ]
+
+
+def _public_page(db: Session, slug: str) -> PublicPageResponse:
+    group = _public_group(db, slug)
+    return PublicPageResponse(
+        slug=group.slug,
+        name=group.name,
+        description=group.description or "",
+        events=_public_event_rows(db, group),
+    )
+
+
+@public_router.get(
+    "/public/groups/{slug}", response_model=PublicPageResponse
+)
+def public_page(slug: str, db: Session = Depends(get_db)):
+    """The group's public page data (B-135): its public facts
+    and public events in one payload, for its own website.
+    CORS answers are made for registered embed origins only
+    (the middleware's rule); the data itself is public."""
+    return _public_page(db, slug)
+
+
+@embed_router.get(
+    "/embed/groups/{slug}", response_model=PublicPageResponse
+)
+def embed_page(
+    slug: str, request: Request, db: Session = Depends(get_db)
+):
+    """The widget door (B-135): the same public page data,
+    served to EMBEDS. A browser embed always carries an
+    Origin header, and the origin must be on THIS group's
+    register — **an unregistered origin gets nothing** (403,
+    and no CORS answer from the middleware either). A
+    request with no Origin header is not a browser embed
+    (server-to-server, a feed reader) and is served like the
+    public page."""
+    group = _public_group(db, slug)
+    origin = request.headers.get("origin")
+    if origin:
+        from gpa.services import embed as embed_service
+
+        if not embed_service.group_allows_origin(group, origin):
+            raise AppError(
+                "forbidden",
+                detail=(
+                    "This origin is not registered to embed this "
+                    "group's page. An organiser can add it under "
+                    "the group's embed settings."
+                ),
+            )
+    page = _public_page(db, slug)
+    return page

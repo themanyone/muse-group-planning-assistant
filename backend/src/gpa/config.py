@@ -16,6 +16,27 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The development-only fallback secret. It exists so a fresh clone
 # runs instantly in dev; production startup refuses it (see below).
+
+# Secrets production must never run with (B-145): the dev
+# fallback below plus the obvious placeholders a tired deploy
+# reaches for. Refused by NAME at startup, in plain words —
+# a public deployment must never sign tokens with a string
+# the whole internet can read in this file or guess in one try.
+KNOWN_DEFAULT_SECRETS = frozenset(
+    {
+        "dev-only-change-me",
+        "changeme",
+        "change-me",
+        "secret",
+        "password",
+        "dev-secret",
+        "test-secret",
+        "test-secret-for-tests-only",
+    }
+)
+
+# Production's minimum: a real secret is a long random value.
+PROD_SECRET_MIN_LENGTH = 32
 DEV_SECRET = "dev-only-change-me"
 
 
@@ -104,6 +125,18 @@ class Settings(BaseSettings):
     ai_price_spark_micros_per_1k: int = 0
     ai_price_wonder_micros_per_1k: int = 0
 
+    # Local driver (Phase 10, B-119): an OpenAI-compatible
+    # endpoint on hardware the operator controls. A group whose
+    # ``prune_driver`` setting says "local" prunes through this
+    # endpoint while extraction stays on the process driver.
+    # The base looks like http://localhost:11434/v1; one model
+    # id serves every tier; the key is optional (many local
+    # servers want none) and environment-only when present.
+    ai_local_base: str = ""
+    ai_local_model: str = ""
+    ai_local_api_key: str = ""
+    ai_local_timeout_seconds: float = 60.0
+
     # Mail transport (Phase 8, B-095). The notification outbox
     # sends through ONE driver boundary (services/mailer.py):
     # "file" is the dev driver — messages land as JSON files in
@@ -113,11 +146,41 @@ class Settings(BaseSettings):
     # failing transports through the mailer registry instead.
     mail_transport: str = "file"
 
+    # SMTP provider driver (Phase 12, B-133): GPA_MAIL_TRANSPORT
+    # ="smtp". The provider is any SMTP-speaking service; the
+    # password is a SECRET, environment-only like every secret
+    # here. ``mail_from_address`` is the envelope/header From
+    # the group's mail wears — deliverability (SPF/DKIM/DMARC
+    # for its domain) is a feature, documented in DEPLOYMENT.md.
+    mail_smtp_host: str = ""
+    mail_smtp_port: int = 587
+    mail_smtp_username: str = ""
+    mail_smtp_password: str = ""
+    mail_smtp_use_tls: bool = True
+    mail_from_address: str = ""
+
+    # The provider webhook's shared secret (B-133): when set,
+    # /api/v1/webhooks/mail/{provider} demands the header
+    # ``x-gpa-mail-signature`` = HMAC-SHA256 hex of the raw body
+    # under this secret, and refuses unsigned word. Empty means
+    # the dev posture — the receiver records unsigned events —
+    # and DEPLOYMENT.md says so in plain words.
+    mail_webhook_secret: str = ""
+
     # The public origin invite links are built on (B-098):
     # "{public_base_url}/invite/<token>". Empty means links are
     # path-only ("/invite/<token>") — right for local dev, and
     # the frontend can absolutise them itself.
     public_base_url: str = ""
+
+    # Integration sealing (Phase 11, B-127): the envelope key
+    # for secrets stored in integration configs and outbound
+    # webhook secrets (services/sealing.py). Empty means "use
+    # the app secret" — one secret to run a small deployment,
+    # a separate one when the operator wants the envelope to
+    # survive an app-secret rotation. Environment-only, like
+    # every secret here; it is never stored anywhere.
+    integration_key: str = ""
 
     # Board segmentation (Phase 5, B-064, decision D-19): SAM is
     # used ONLY to cut a board photo into poster regions. Its base
@@ -132,15 +195,24 @@ class Settings(BaseSettings):
     @field_validator("secret_key")
     @classmethod
     def _secret_must_be_real_in_prod(cls, value: str, info) -> str:
-        """Fail startup, in plain words, if prod uses the dev secret.
+        """Fail startup, in plain words, if prod runs with a
+        known-default or short secret (B-145).
 
-        A config error should stop the world loudly at boot — never
-        let a public deployment sign tokens with a published string.
+        A config error should stop the world loudly at boot —
+        never let a public deployment sign tokens with a
+        published or guessable string.
         """
         env = (info.data or {}).get("env", "dev")
-        if env == "prod" and value == DEV_SECRET:
+        if env == "prod" and value in KNOWN_DEFAULT_SECRETS:
             raise ValueError(
-                "GPA_SECRET_KEY is not set to a real secret. "
+                "GPA_SECRET_KEY is set to a known default value. "
+                "Set GPA_SECRET_KEY to a long random value before "
+                "running with GPA_ENV=prod."
+            )
+        if env == "prod" and len(value) < PROD_SECRET_MIN_LENGTH:
+            raise ValueError(
+                "GPA_SECRET_KEY is too short for production "
+                f"(under {PROD_SECRET_MIN_LENGTH} characters). "
                 "Set GPA_SECRET_KEY to a long random value before "
                 "running with GPA_ENV=prod."
             )

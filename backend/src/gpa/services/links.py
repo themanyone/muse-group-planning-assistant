@@ -60,6 +60,7 @@ def ingest_link(
     chunks = file_service.extract_chunks(kind, body)
     if not chunks:
         raise AppError("validation_error", detail="That page has no readable text.")
+    file_service.enforce_upload_quota(db, group, len(body))
     storage_key = storage.put_bytes(body, "html" if kind == "html" else "txt")
     asset = FileAsset(
         group_id=group.id, storage_key=storage_key,

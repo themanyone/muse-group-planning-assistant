@@ -185,6 +185,7 @@ def ingest_newsletter(
     chunks = parse_newsletter_html(html)
     if not chunks:
         raise AppError("validation_error", detail="That newsletter has no readable sections.")
+    file_service.enforce_upload_quota(db, group, len(data))
     digest = hashlib.sha256(data).hexdigest()
     storage_key = storage.put_bytes(data, "html")
     asset = FileAsset(

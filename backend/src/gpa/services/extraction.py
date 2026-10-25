@@ -278,6 +278,20 @@ def run_extraction(
         for other in neighbours:
             candidate_service.refresh_flags(db, other)
 
+    # Machine drafts landing in the queue are announced
+    # outward in this same transaction (Phase 11, B-128):
+    # candidate.pending, one per draft.
+    from gpa.services import outbound as outbound_service
+
+    for candidate in created:
+        outbound_service.emit(
+            db, group=group, kind="candidate.pending",
+            data={
+                "candidate_id": candidate.id,
+                "kind": candidate.kind,
+                "title": candidate.title,
+            },
+        )
     audit.record(
         db, actor=requested_by, action="extraction.completed",
         group_id=group.id, entity_type="source", entity_id=source.id,

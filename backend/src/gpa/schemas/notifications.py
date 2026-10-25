@@ -22,6 +22,11 @@ class NotificationResponse(BaseModel):
     kind: str
     send_email: bool
     in_app: bool
+    # The Messenger channel (B-134): whether this row rides
+    # it, and its delivery outcome ("", "sent",
+    # "driver_unavailable", "failed", "unlinked").
+    send_messenger: bool = False
+    messenger_status: str = ""
     subject: str
     body_text: str
     body_html: str
@@ -47,7 +52,7 @@ class InboxResponse(BaseModel):
 class PreferenceSwitch(BaseModel):
     """One channel × kind switch (B-100)."""
 
-    channel: str = Field(pattern="^(email|in_app)$")
+    channel: str = Field(pattern="^(email|in_app|messenger)$")
     kind: str = Field(pattern="^(invite|reminder|change|digest|rsvp)$")
     enabled: bool = True
 

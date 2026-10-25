@@ -230,6 +230,50 @@ def extract_chunks(kind: str, data: bytes) -> list[dict]:
 _EXTENSION = {"pdf": "pdf", "html": "html", "ics": "ics", "text": "txt"}
 
 
+def group_stored_bytes(db: Session, group: Group) -> int:
+    """The group's total stored upload bytes, as recorded.
+
+    The ledger is the FileAsset table: every ingest that puts
+    bytes in storage for a group writes one row naming the size
+    it stored. (Image thumbnails ride along uncounted — they
+    are small, bounded derivatives of a counted original.)
+    """
+    from sqlalchemy import func
+
+    total = (
+        db.query(func.coalesce(func.sum(FileAsset.size), 0))
+        .filter(FileAsset.group_id == group.id)
+        .scalar()
+    )
+    return int(total or 0)
+
+
+def enforce_upload_quota(db: Session, group: Group, incoming_bytes: int) -> None:
+    """Refuse an upload that would push the group over its
+    storage quota (B-141).
+
+    The quota is the group's own dial (settings pack): NULL
+    means the group chose no cap. The refusal names the quota
+    in plain words — a member hitting it should learn what to
+    do (ask an admin to raise it, or remove old uploads), not
+    stare at a number. Called by every ingest road BEFORE the
+    bytes are stored, with the size that will be recorded.
+    """
+    quota = group.upload_quota_bytes
+    if quota is None:
+        return
+    used = group_stored_bytes(db, group)
+    if used + incoming_bytes > quota:
+        raise AppError(
+            "quota_exceeded",
+            detail=(
+                f"That upload would take the group past its storage quota "
+                f"({quota} bytes; {used} already used). Ask an admin to "
+                f"raise the quota, or remove old uploads first."
+            ),
+        )
+
+
 def ingest_file(
     db: Session,
     *,
@@ -259,6 +303,7 @@ def ingest_file(
     hostile = virus_scan(data)
     if hostile:
         raise AppError("validation_error", detail=hostile)
+    enforce_upload_quota(db, group, len(data))
     kind, mime = sniff_kind(data)
     chunks = extract_chunks(kind, data)
     digest = hashlib.sha256(data).hexdigest()

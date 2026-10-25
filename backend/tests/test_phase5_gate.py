@@ -54,7 +54,13 @@ def test_flow_a_with_the_fixture_driver(client, app, db_session):
     # Record the fixture reading against the STORED bytes — the
     # ingest pipeline normalises the upload, so the recording is
     # keyed by what the reader will actually be handed.
-    stored = app.state.storage.get_bytes(detail["storage_key"])
+    # (B-141 supersession: responses no longer carry storage
+    # keys — the source's row names it, as storage's callers do.)
+    from gpa.models.sources import Source
+
+    stored = app.state.storage.get_bytes(
+        db_session.get(Source, detail["id"]).storage_key
+    )
     fixture = FixtureDriver()
     fixture.add_image(
         build_vision_prompt(), stored, FIXTURE_ANSWER,

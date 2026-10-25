@@ -17,12 +17,16 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from gpa.config import get_settings  # noqa: E402
 from gpa.db import Database  # noqa: E402
+from gpa.services.demo import load_demo_story  # noqa: E402
 from gpa.services.seed import load_all_seeds, load_seed_file  # noqa: E402
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Load Group Planning Assistant seeds.")
-    parser.add_argument("--demo", action="store_true", help="Load only seeds/demo.json")
+    parser.add_argument(
+        "--demo", action="store_true",
+        help="Load the full demo story (B-147): demo.json + demo_story.json + sources, board, and a month of events",
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -31,7 +35,7 @@ def main() -> None:
     session = db.session()
     try:
         if args.demo:
-            result = load_seed_file(session, ROOT / "seeds" / "demo.json")
+            result = load_demo_story(session, ROOT / "seeds")
         else:
             result = load_all_seeds(session, ROOT / "seeds")
         print(f"Seed complete: {result}")

@@ -209,7 +209,10 @@ def test_conflict_flags_are_exact(client, world, evening):
         frozenset({flag["event_id"], flag["other_event_id"]}) == frozenset({a, c})
         for flag in flags
     )
-    assert "later phase" in body.json()["resource_note"]
+    # Superseded by B-108 (Phase 9): resources exist now, and
+    # the note says where their double-bookings appear instead
+    # of deferring them to a later phase.
+    assert "resource_overlap" in body.json()["resource_note"]
 
 
 # ------------------------------------------------------------------

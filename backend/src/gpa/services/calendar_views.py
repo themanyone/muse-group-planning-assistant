@@ -366,6 +366,11 @@ def conflicts(
         )
         if event.status == "published" and not occ.cancelled
     ]
+    # Resource bookings per event (Phase 9, B-108): the other
+    # half of B-057, deferred until the resource model existed.
+    from gpa.services import resources as resource_service
+
+    bookings_map = resource_service.bookings_by_event(db, group)
     flags: list[dict] = []
 
     def flag(kind: str, a, b, message: str, **extra) -> None:
@@ -402,6 +407,21 @@ def conflicts(
                         "place_overlap", pair_a, pair_b,
                         f"{event_a.place_name} is double-booked: "
                         f"'{event_a.title}' overlaps '{event_b.title}'.",
+                    )
+                # The same resource held by both events over the
+                # overlap (B-108): a flag, never a block — the
+                # groups' handovers are theirs to judge.
+                shared = sorted(
+                    set(bookings_map.get(event_a.id, {}))
+                    & set(bookings_map.get(event_b.id, {}))
+                )
+                for resource_id in shared:
+                    resource_name = bookings_map[event_a.id][resource_id]
+                    flag(
+                        "resource_overlap", pair_a, pair_b,
+                        f"{resource_name} is double-booked: "
+                        f"'{event_a.title}' overlaps '{event_b.title}'.",
+                        resource_id=resource_id, resource_name=resource_name,
                     )
             # Travel: the same host, two pinned places, a gap too
             # small for the distance between them.

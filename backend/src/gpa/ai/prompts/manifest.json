@@ -36,6 +36,22 @@
       "sha256": "d923dd78a8b33737f2e0f9667c36852b026b34a289365c33283b13da63abcc5f",
       "version": 2
     },
+    "newsletter": {
+      "sha256": "3772603e175ed03827bab549d00723db0fa3a6fad286cf87c65321eef06c3d19",
+      "version": 1
+    },
+    "prune": {
+      "sha256": "bcc0594a98e4072d2cbd5868bfd233c2d62d17624466835b4de6299a03217f54",
+      "version": 1
+    },
+    "prune_reconsider": {
+      "sha256": "b8fac3aa5ce16cda52c845b03dbbd91f5a1de651cc1aa622f38bd8fc3c81b606",
+      "version": 1
+    },
+    "recap": {
+      "sha256": "6f519442f0cf4668f1330330a4cd426a4912ca5ea5a2581242f035c97f77d727",
+      "version": 1
+    },
     "reminder_wording": {
       "sha256": "199991bd9dcb4752de7726d2df748bce4d8845867031b9f121400d76c0866111",
       "version": 1

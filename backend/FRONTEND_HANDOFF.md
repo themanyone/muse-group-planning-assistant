@@ -608,6 +608,89 @@ The backend now speaks. Everything below is live and tested.
   gate passed on 2026-10-24 and it folded into this Beta,
   whose range is B-001 → B-104.
 
+## Members, nonprofit pack, and resources (Phase 9) — NEW, folds into ZIP-RC
+
+Sub-groups, an announcements board, volunteer shifts, hall
+gear, attendance counts, roster import/export, and one
+settings pack. All live and tested; contract is now
+151 paths / 179 schemas.
+
+- **Sub-groups (chapters)** — `POST/GET /groups/{id}/subgroups`
+  (organiser+ to create), `PATCH/DELETE
+  /groups/{id}/subgroups/{sub_id}`, enrol via `POST
+  /groups/{id}/subgroups/{sub_id}/members` `{user_id, role?}`.
+  Events and tasks carry `subgroup_id`: a scoped item is for
+  its sub-group's members and group organisers — to anyone
+  else in the group it is **absent (404)**, exactly like a
+  private group. Send `subgroup_id` on event/task create or
+  PATCH to scope one. Deleting a sub-group that still scopes
+  anything is a 409 with counts — unscope first.
+- **Announcements board** — `POST/GET /groups/{id}/announcements`
+  (organiser+ posts; members read), `PATCH/DELETE` the same
+  path with the announcement id. `pinned` posts sort first,
+  then newest; `expires_at` hides a post from members when it
+  passes (organisers can pass `?include_expired=true`). A
+  member posting is a 403 — the board is organiser voice,
+  separate from chat and from event discussion.
+- **Volunteer shifts** — `POST /groups/{id}/events/{event_id}/shifts`
+  `{role_name, headcount, starts_at, ends_at}` opens headcount
+  slots over one window; claims ride the role endpoints you
+  already have (`POST /groups/{id}/roles/{slot_id}/claim` and
+  `…/unclaim`). **Gap report**: `GET /groups/{id}/shift-gaps?from=…&to=…`
+  returns only events that still need people, `missing`
+  in first-opened order, plus a ready-made `summary` line
+  ("Saturday still needs a driver and a door person.") —
+  show it verbatim; it is written for humans.
+- **Resources** — `POST/GET/PATCH/DELETE /groups/{id}/resources`
+  `{name, description, keeper_user_id?}` (the keeper is a
+  member; their label shows on the item), bookings via
+  `POST /groups/{id}/events/{event_id}/resource-bookings`
+  `{resource_id}` (list them on the same path; unbook via
+  `DELETE /groups/{id}/resource-bookings/{booking_id}`).
+  **Double-booking is allowed and flagged**,
+  never refused: the calendar conflicts response
+  (`GET /groups/{id}/conflicts`) gains `resource_overlap`
+  flags, and a booking response echoes its own `conflicts`.
+  Build the UI as "booked — and heads up, it clashes", not an
+  error state.
+- **Attendance** — `POST/DELETE
+  /groups/{id}/events/{event_id}/attendance` `{user_id}`
+  (organiser marks), reads are **counts only**: `GET
+  /groups/{id}/events/{event_id}/attendance` →
+  `{attendee_count}`, and `GET /groups/{id}/attendance/summary?recent=3`
+  → per-event counts + an average. There is deliberately
+  **no per-person attendance read anywhere** — do not design
+  a "who came" screen against this API; it refuses by design.
+- **Member import/export** — `POST /groups/{id}/members/import`
+  (admin+) with the CSV as the raw body (`name,email,sub-group`
+  header; `?dry_run=true` reports without changing anything).
+  The response is a report: created / already-members /
+  enrolments / `subgroups_created`, plus `skipped` and
+  `errors` rows named by spreadsheet row number — show it
+  after an import; it is the receipt. Imported people arrive
+  as **invited** members. Export: `GET
+  /groups/{id}/members/export` (JSON) or `?format=csv`.
+- **Settings pack** — `GET /groups/{id}/settings`
+  (organiser+), `PUT` (admin+): one object — `review_min_role`,
+  `review_approvals_required` (1–3 distinct approvers),
+  `reminder_rules`, `digest_weekday` / `digest_time` /
+  `digest_enabled`, `template_set`, `ai_daily_budget_micros`
+  (null = no cap). PUT is partial: absent fields are left
+  alone; a present null clears where null means something.
+  **Approval UI changes**: the approve door is membership
+  now — whether THIS caller may approve, and whether one
+  approval decides, is the group's pack. `CandidateResponse`
+  carries `approvals_recorded` / `approvals_required`, so
+  render "1 of 2 approvals" from those; a recorded-but-not-
+  decided approval returns the candidate still `pending`,
+  and the same person approving twice is a 409.
+- **Scoping boundary (honest)**: the weekly digest and the
+  iCal feed stay group-wide in this phase — they are
+  organiser-published broadcasts, and the digest is one
+  stored row per group. Member-facing interactive reads
+  (events, tasks, calendar, announcements, search) enforce
+  sub-group scoping.
+
 ## The contract
 
 - `OPENAPI.json` in this ZIP is the exact contract the tests passed
@@ -623,6 +706,270 @@ The backend now speaks. Everything below is live and tested.
 - Agent seats can draft candidates and can **never** approve them —
   the API returns 403 `seat_cannot_approve`. Approval UI is for
   people (organiser+) only.
+
+## Live sources and the bridge (Phase 11) — NEW, folds into ZIP-RC
+
+Phase 11 connects the village to its neighbours — carefully,
+and honestly about what is and is not live.
+
+- **Live sources (Samtal, Messenger).** Register a live
+  source with `POST /sources/live` (the B-032 permission
+  record), then `POST /sources/{id}/sync` pulls new messages
+  as transcript chunks. Each source has a sync-state record:
+  cursor, last success, last attempt, and the last refusal
+  **in plain words** — show it verbatim when a sync fails;
+  that text is written for the user, not for a log.
+  **Samtal is exercised against recorded fixtures and a test
+  double in this backend's suite**; real deployment points
+  the connector at the group's own Samtal with its own
+  consent record. **Messenger access has not been granted**:
+  a Messenger source registers like any other, but sync
+  refuses with a message naming the paste/export road — the
+  UI should present paste/export as *the* Messenger path,
+  not as a degraded one.
+- **Speakers and identity.** `GET /sources/{id}/speakers`
+  lists who spoke, linked or guest (`guest: true`,
+  `person_id` null). Nothing merges a speaker into a member
+  except an explicit link — `POST/GET/DELETE
+  /account-links` (admin-gated; link by the speaker's
+  Samtal person id, `external_ref`). Render unlinked
+  speakers as named guests; that is their standing, not an
+  error.
+- **The calendar return path.** `POST
+  /sources/{id}/calendar-sync` (organiser) pushes the
+  group's published events onto the hall's calendar and
+  brings Samtal-side edits back as **change candidates** in
+  the ordinary queue (provenance `system:samtal-calendar`) —
+  nothing Samtal-side ever writes the group's events
+  directly. The response counts `pushed`, `candidates`, and
+  `unchanged`.
+- **Inbound webhooks.** `POST /groups/{id}/webhook-endpoints`
+  returns the URL token **once** — capture it in the same
+  screen that created it; it is never shown again (only its
+  hash is kept). Senders sign with the endpoint's derived
+  secret: header `X-Gpa-Signature: t=<unix>,v1=<hmac-sha256
+  hex of "<t>.<raw body>">`. A signed payload is accepted
+  exactly once; replays get `409 webhook_replay`. Payload
+  shapes: `{"messages": [{sender, text, sent_at?,
+  sender_ref?}]}` or `{"text": …}`.
+- **Integrations.** `POST/GET/PATCH/DELETE /integrations`
+  stores a kind (`samtal`, `facebook_events`,
+  `google_calendar`, `custom`) plus a config object that is
+  **sealed at rest** — reads return only `config_keys` (the
+  names), never values. `POST /integrations/{id}/health`
+  records a health verdict with a plain-words `last_error`;
+  kinds whose live slice lands later say so in that text.
+- **Outbound webhooks.** `POST /outbound-webhooks`
+  subscribes an HTTPS endpoint to `event.published`,
+  `event.changed`, `event.cancelled`, `candidate.pending`;
+  the signing secret is shown **once**. Deliveries arrive
+  signed the inbound way (`X-Gpa-Signature` over
+  `"<timestamp>.<body>"`, plus `X-Gpa-Event` and
+  `X-Gpa-Delivery` headers) and are inspectable at
+  `GET /outbound-webhooks/{id}/deliveries` (status,
+  attempts, last error, response status) — a delivery that
+  exhausts retries ends `dead` with its reason kept.
+- **The agent pack.** Operations tagged **`agent`** in
+  `OPENAPI.json` are the seat's working surface (sources
+  read, queue read/draft, events read, ask, summaries).
+  Scopes, once: `read` sees, `draft` creates, `publish`
+  requests extractions/syncs, `admin` administers — and no
+  scope lets a seat approve; approval is a person's act, and
+  the API refuses a seat's approval with `403
+  seat_cannot_approve`. `examples/secretary_seat.py` is a
+  complete worked seat to build against.
+- **Contract:** 174 paths / 204 schemas (was 160 / 189).
+
+## Context pruning and group memory (Phase 10) — NEW, folds into ZIP-RC
+
+The group's memory engine: the approved history (sources,
+current decisions, approved summaries) can be asked
+questions, woven into briefings and recaps, and inspected.
+All live and tested; contract is now 160 paths /
+189 schemas.
+
+- **Ask the memory** — `POST /groups/{id}/ask` `{question}`
+  (member+) → `{answer, verified, citations, summary_id,
+  prune_run_id}`. Every citation is `{quote, chunk_id,
+  position}` and was verified against its source chunk
+  before the answer shipped. **When `verified` is false,
+  the answer BEGINS with "I couldn't verify this"** and any
+  citations carry `chunk_id: null` — render unverified
+  answers visibly differently (they are labelled found
+  material, not fact). Never restyle a refusal as an answer.
+- **Summaries** — `GET /groups/{id}/summaries?kind=`
+  (member+) lists answers, briefings, recaps, newsletters
+  with `status` draft/approved/final. Drafts become memory
+  only via `POST /groups/{id}/summaries/{summary_id}/approve`
+  (organiser+). Approving a **newsletter** also files it as
+  a source — next month's memory reads it.
+- **Discussion summaries** — `POST
+  /groups/{id}/summaries/discussion` `{parent_type,
+  parent_id}` (organiser+) → a draft summary plus
+  `candidate_ids`: the decisions/next actions it named,
+  waiting in the review queue as ordinary candidates
+  (`created_by: "system:summary"`, flag `from_summary`).
+  A summary never writes a decision itself.
+- **Event briefings** — `POST
+  /groups/{id}/events/{event_id}/briefing` (member+) →
+  `{summary, open_questions, role_gaps, prune_run_id}`:
+  the host's woven briefing (past decisions, last recap,
+  pruned history — landmines included), the model's open
+  questions, and the data's unclaimed role names.
+- **Recaps + newsletters** — `POST
+  /groups/{id}/events/{event_id}/recap` (organiser+) drafts
+  a recap from discussion + attendance count + **completed
+  alt text only**; `POST /groups/{id}/newsletters/draft`
+  `{year, month}` (organiser+) weaves that month's
+  APPROVED recaps into a newsletter draft.
+- **Memory transparency** — `GET /groups/{id}/memory/runs`
+  (member+) lists every prune/ask/brief run with kept and
+  dropped chunk ids, passes, model, and cost. `DELETE
+  /groups/{id}/memory/runs/{run_id}` and `DELETE
+  /groups/{id}/memory/runs` (organiser+) purge run records;
+  **summaries are never deleted by a purge**.
+- **Pruning settings** — the settings pack gains
+  `prune_max_passes` (1–3), `prune_token_budget`, and
+  `prune_driver` (`hosted` | `local`). Local pruning runs
+  on the group's own OpenAI-compatible endpoint when the
+  operator has configured one; extraction always stays on
+  the process driver.
+
+## External publishing (Phase 12) — NEW in ZIP-RC
+
+Phase 12 takes the group's events OUT — to a Facebook Page,
+a Google calendar, real inboxes, and the group's own
+website — through doors a person deliberately uses. The
+standing boundary, stated once for the whole phase: **no
+live third-party action exists in this build.** No Facebook
+Page, Google account, or mail provider is connected; every
+surface below is built and proven against recorded fixtures
+and stub transports, and the live smoke tests are recorded
+as NOT RUN in TEST_REPORT — they await connected accounts
+and the project owner's word.
+
+- **Facebook Events.** `GET /groups/{id}/events/{eid}/facebook-draft`
+  is B-058's payload (unchanged). `POST …/facebook` is THE
+  PRESS (organiser + publish scope): first press creates the
+  Page copy, later presses update it, and a press on a
+  cancelled event carries the cancellation out. The response
+  (and `GET …/facebook`) is `{status, external_id, url,
+  differs, action}` — render `differs` as "the Page copy is
+  behind; press to update". `DELETE …/facebook` removes the
+  copy. Nothing travels without the press, ever.
+- **Google Calendar.** `POST /integrations/{id}/google-connect`
+  (admin) records the connection verdict on the integration;
+  `POST …/google-sync` (organiser + publish) returns
+  `{pushed, updated, cancelled, unchanged}`. The scope
+  decision, for the UI's words: **sync is one-way OUT** — a
+  Google-side edit is never read back, so never promise a
+  two-way calendar. Cancellations propagate as
+  cancellations; drafts never travel.
+- **Mail.** Outward mail now has a real SMTP driver behind
+  the B-095 boundary (deployment config; `DEPLOYMENT.md`
+  carries the provider + SPF/DKIM notes). Nothing changes
+  in the notification payloads the UI already renders —
+  except `Notification` gains `send_messenger` +
+  `messenger_status` (below).
+- **Messenger notifications.** `Notification` responses now
+  carry `send_messenger` (bool) and `messenger_status`
+  (`"" | "sent" | "driver_unavailable" | "failed" |
+  "unlinked"`). Messenger access has NOT been granted to
+  this project, so in practice the status is
+  `driver_unavailable` whenever the channel was asked for —
+  render it as "Messenger isn't connected for this group;
+  email carried this", never as a failure of the message.
+  The preference switchboard (`GET/PUT
+  /users/me/groups/{id}/notification-preferences`) now
+  includes `messenger` switches for every category; the
+  channel additionally requires the member's B-123
+  Messenger account link — a switch alone cannot send.
+- **Embed + public page.** `GET/PUT /groups/{id}/embed-origins`
+  (organiser read, admin write) manages the register of web
+  origins allowed to embed the group's page; an origin is
+  `scheme://host` — no path (a path gets a plain-words 422).
+  `GET /public/groups/{slug}` returns `{slug, name,
+  description, events}` at the B-059 public projection.
+  `GET /embed/groups/{slug}` is the widget door: it serves
+  the same payload, refuses a present-but-unregistered
+  `Origin` with 403, and CORS answers (including preflight)
+  are made ONLY for registered origins — an unregistered
+  origin gets no `Access-Control-Allow-Origin` at all.
+- **Health board.** `GET /groups/{id}/integrations/health-board`
+  (organiser+) returns one entry per integration:
+  `{integration_id, kind, name, status, last_checked_at,
+  last_success_at, last_error, advice}`. `advice` is ONE
+  next step in plain words — show it verbatim beside the
+  status; `last_error` keeps the outside system's own words
+  as the evidence under it.
+- **Reconciliation.** `POST /groups/{id}/integrations/reconcile`
+  (admin) runs the comparison now and returns `{drift:
+  [{event_id, title, connector, kind, external_id}]}` where
+  `kind` is `differs` or `missing`. It also runs nightly on
+  its own chain, notifying organisers. The UI's words
+  matter here: reconciliation REPORTS, it never repairs —
+  a missing copy returns at the next press/sync; a differing
+  copy stands until a person settles it.
+
+## Security, privacy, and erasure (Phase 13) — NEW, folds into ZIP-Final
+
+Phase 13 re-attacked everything before it and added the
+privacy surfaces. What the frontend needs to know:
+
+- **`storage_key` is GONE from source responses (contract
+  change).** It was an internal locator, never fetchable —
+  no route serves file bytes by key. If your UI needs to
+  SHOW a flyer image, the road is a media route authorised
+  by flyer/source id through the view door; that route is
+  not in this build, so render flyers from their metadata
+  (dimensions, alt text) for now and ask us before assuming
+  a bytes URL of any shape. Guessed file URLs return 404 —
+  that is deliberate, and tested.
+- **Group export** — `POST /groups/{id}/export` (owner,
+  live session only; API keys get 403): returns a ZIP
+  (`Content-Disposition` filename). Offer it as "Download
+  everything this group has" in owner settings.
+- **Group erasure** — `POST /groups/{id}/erase` (same
+  door): body `{confirm_name, confirm_word}` where
+  confirm_name is the group's EXACT name and confirm_word
+  is the literal `ERASE`. A mismatch is a 422 and nothing
+  is erased. Build the confirmation screen to make the
+  person type the name — the API demands it anyway. The
+  response is a receipt of counts; the group is then 404
+  everywhere, its calendar feeds included.
+- **Storage quota.** Group settings now carry
+  `upload_quota_bytes` (default 104857600; `null` = no
+  quota). Uploads that would cross it fail 422
+  `quota_exceeded` with a plain-words detail — surface the
+  detail text as-is. Show usage as the sum of file sizes
+  you already list; the quota counts stored upload bytes.
+- **"What do you hold about me?"** — `GET /users/me/data`:
+  one payload, sections named in plain words (`account`,
+  `my_groups`, `my_api_keys`, `seats_i_created`,
+  `my_notifications`, `comments_i_wrote`, `my_rsvps`,
+  `my_poll_votes`, `my_attendance`,
+  `tasks_assigned_to_me`, `candidates_i_authored`,
+  `my_linked_accounts`). Keys appear by prefix + label only
+  — never render a "full key" from this payload; there
+  isn't one. (Non-technical reader test, B-144: the builder
+  read this payload as a member would — section names and
+  the permission words below needed no glossary; the one
+  wording fix made during the phase was in the digest's
+  plain-text rendering, not here.)
+- **Source permissions** — `GET /groups/{id}/sources/permissions`
+  (any member): `[{source_id, title, kind, added_by,
+  permission, added_on}]`. `permission` is the sharer's own
+  recorded words, or exactly "No permission note was
+  recorded for this source." — render it verbatim; it is
+  the audit surface members will quote.
+- **Retention** — settings carry `source_retention_days`
+  (`null` = keep sources forever; the default). When set,
+  raw sources older than the window are removed nightly
+  (approved events and candidates stay; candidates show
+  their source as deleted). `POST /groups/{id}/retention/run`
+  (admin) runs the sweep now and returns counts only.
+  Suggested settings copy: "Old source material is removed
+  after N days. Events your group approved stay."
 
 ## Run it
 

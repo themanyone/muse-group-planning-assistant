@@ -179,6 +179,11 @@ def build_client(settings) -> MetaModelClient:
         from gpa.ai.drivers_live import LiveDriver
 
         return LiveDriver(settings)
+    if driver == "local":
+        from gpa.ai.drivers_local import LocalDriver
+
+        return LocalDriver(settings)
     raise ModelError(
-        f"Unknown GPA_AI_DRIVER '{settings.ai_driver}' — expected mock, fixture, or live."
+        f"Unknown GPA_AI_DRIVER '{settings.ai_driver}' — "
+        "expected mock, fixture, live, or local."
     )

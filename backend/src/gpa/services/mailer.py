@@ -1,4 +1,4 @@
-"""The mail transport boundary (roadmap B-095).
+"""The mail transport boundary (roadmap B-095, B-133).
 
 Every notification email leaves through ONE protocol,
 ``MailTransport.send`` — the same adapter discipline as the AI
@@ -14,13 +14,24 @@ choice, never a code change:
   send so a test can assert what WOULD have gone out.
 - ``FailingTransport`` — always raises ``TransportError``: the
   dead mail server of B-095's kill test, as a driver.
+- ``SmtpTransport`` — the real provider driver (B-133): plain
+  stdlib SMTP to whatever provider the operator configured,
+  TLS + login when set, returning the message's Message-ID.
 
-The real provider driver (SMTP/API) lands in Phase 12 (B-133)
-behind this same protocol. Until then, nothing in this codebase
-claims a real email reached a real inbox — the file IS the
-mailbox in dev, and the boundary is named wherever it matters.
+**The honest boundary, kept:** no mail provider is configured
+in this environment, so no test here claims a real email
+reached a real inbox. The roadmap's acceptance for B-133 — a
+real digest landing in a real inbox — is a **pre-submission
+checklist item, recorded, not assumed** (see TEST_REPORT's
+Phase 12 addendum). What ships here is the driver, fully
+wired and proven against a stub SMTP server, plus the
+SPF/DKIM/DMARC notes in DEPLOYMENT.md that make a real
+deployment's mail land.
 """
 
+import smtplib
+from email.message import EmailMessage
+from email.utils import make_msgid
 from typing import Protocol
 
 from gpa.config import Settings
@@ -95,14 +106,89 @@ class FailingTransport:
         raise TransportError(self._message)
 
 
+class SmtpTransport:
+    """The real provider driver (B-133): stdlib SMTP out.
+
+    Talks to the operator's configured provider (any
+    SMTP-speaking service) with STARTTLS and login when the
+    settings carry them. The connection is made through an
+    injectable factory — production gets ``smtplib.SMTP``;
+    tests hand in a recording stub server, so the driver's
+    wire behaviour (message shape, TLS, login, refusal →
+    TransportError) is proven without a network or a claim
+    that any real inbox received anything.
+    """
+
+    def __init__(self, settings: Settings, *, connect=None):
+        self._settings = settings
+        self._connect = connect or (
+            lambda host, port: smtplib.SMTP(host, port, timeout=30)
+        )
+
+    def send(
+        self, *, to: str, subject: str, body_text: str, body_html: str = ""
+    ) -> str:
+        settings = self._settings
+        message = EmailMessage()
+        message["From"] = settings.mail_from_address
+        message["To"] = to
+        message["Subject"] = subject
+        message_id = make_msgid()
+        message["Message-ID"] = message_id
+        message.set_content(body_text)
+        if body_html:
+            message.add_alternative(body_html, subtype="html")
+        try:
+            server = self._connect(settings.mail_smtp_host, settings.mail_smtp_port)
+            try:
+                if settings.mail_smtp_use_tls:
+                    server.starttls()
+                if settings.mail_smtp_username:
+                    server.login(
+                        settings.mail_smtp_username, settings.mail_smtp_password
+                    )
+                server.send_message(message)
+            finally:
+                try:
+                    server.quit()
+                except Exception:
+                    pass  # The send already decided the outcome.
+        except TransportError:
+            raise
+        except Exception as err:
+            # Any SMTP failure is a transport failure in the
+            # outbox's vocabulary: retryable, recorded, never
+            # propagated into a user request.
+            raise TransportError(f"SMTP send failed: {err}") from err
+        return message_id
+
+
 def build_transport(settings: Settings) -> MailTransport:
-    """The configured driver. Only "file" exists as a setting
-    today; the real provider arrives in Phase 12 (B-133)."""
+    """The configured driver: "file" (dev) or "smtp" (B-133's
+    provider driver). An smtp setting without its host or
+    From address fails startup in plain words — a deployment
+    that cannot send must say so at boot, not at 2 a.m."""
     if settings.mail_transport == "file":
         return FileTransport(settings)
+    if settings.mail_transport == "smtp":
+        missing = [
+            name
+            for name, value in (
+                ("GPA_MAIL_SMTP_HOST", settings.mail_smtp_host),
+                ("GPA_MAIL_FROM_ADDRESS", settings.mail_from_address),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError(
+                "GPA_MAIL_TRANSPORT=smtp needs "
+                + " and ".join(missing)
+                + " set. See DEPLOYMENT.md for the provider setup."
+            )
+        return SmtpTransport(settings)
     raise ValueError(
         f"Unknown GPA_MAIL_TRANSPORT '{settings.mail_transport}'. "
-        "Known drivers: file (the provider driver lands in Phase 12)."
+        "Known drivers: file, smtp."
     )
 
 

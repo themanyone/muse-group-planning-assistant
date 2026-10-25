@@ -20,7 +20,9 @@ from gpa.schemas.identity import (
     TokenConsumeRequest,
     UserResponse,
 )
+from gpa.schemas.privacy import MeDataResponse
 from gpa.services import identity as identity_service
+from gpa.services import me_data as me_data_service
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -55,6 +57,15 @@ def _key_response(row, full_key: str | None = None) -> ApiKeyResponse:
 def me(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
     """Who am I? — the profile of the signed-in person."""
     return _user_response(_me(db, principal))
+
+
+@router.get("/me/data", response_model=MeDataResponse)
+def my_data(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Everything the system holds about me (B-144): my
+    account, my groups, my keys by prefix, what I wrote and
+    chose. No hashes or secrets — a person reading their own
+    record should never meet one."""
+    return me_data_service.build_me_data(db, _me(db, principal))
 
 
 @router.patch("/me", response_model=UserResponse)

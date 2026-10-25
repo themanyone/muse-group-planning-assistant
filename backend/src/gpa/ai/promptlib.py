@@ -21,6 +21,9 @@ header, and regenerate the manifest
 Placeholders in template bodies are ``{{NAME}}`` tokens, replaced
 literally at render time — no format-string machinery, so a
 template may contain any braces its JSON examples need.
+Substitution is a single pass over the template (B-142): the
+values substituted in are data and are never rescanned for
+placeholders of their own.
 """
 
 import hashlib
@@ -33,6 +36,10 @@ from pathlib import Path
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 _FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
+
+# A {{NAME}} placeholder: double braces around a name with no
+# braces of its own. Matched once, over the template only.
+_PLACEHOLDER = re.compile(r"\{\{([^{}]+)\}\}")
 
 
 class PromptError(Exception):
@@ -49,11 +56,23 @@ class PromptTemplate:
     schema: dict | None
 
     def render(self, **variables: str) -> str:
-        """Substitute {{NAME}} placeholders with the given words."""
-        text = self.body
-        for key, value in variables.items():
-            text = text.replace("{{" + key + "}}", value)
-        return text
+        """Substitute {{NAME}} placeholders with the given words.
+
+        ONE pass over the template body (B-142): substituted
+        values are never rescanned, so text that arrives AS a
+        value — a source's chunks, a member's question — cannot
+        smuggle a placeholder of its own into the prompt. A
+        pasted "{{GROUP_TIMEZONE}}" stays literal words in the
+        chunk where the member wrote it; it does not expand.
+        For values containing no placeholders the output is
+        byte-identical to sequential replacement, which the
+        fixture recordings (keyed by rendered-prompt hash) and
+        the B-142 tests both prove.
+        """
+        def _substitute(match: re.Match) -> str:
+            return variables.get(match.group(1), match.group(0))
+
+        return _PLACEHOLDER.sub(_substitute, self.body)
 
 
 def _parse_template(text: str, *, name: str) -> tuple[int, str]:

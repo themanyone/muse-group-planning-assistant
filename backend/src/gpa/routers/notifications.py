@@ -9,12 +9,16 @@ Three surfaces, one door discipline (deps.py):
   resend (organiser+), and the group's digests (member to
   read, organiser+ to run one now).
 - ``/webhooks/mail/{provider}`` — the mail provider's bounce /
-  complaint receiver, stubbed (B-102): the shape is recorded;
-  signature verification arrives with the real provider
-  driver in Phase 12.
+  complaint receiver (B-102's recorded shape; B-133 adds the
+  signature check: when GPA_MAIL_WEBHOOK_SECRET is set, the
+  provider's ``x-gpa-mail-signature`` HMAC must verify, or
+  the event is refused and nothing is recorded).
 """
 
-from fastapi import APIRouter, Depends, Query
+import hashlib
+import hmac
+
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from gpa.db import get_db
@@ -44,6 +48,7 @@ def _notification_response(row: Notification) -> NotificationResponse:
         id=row.id, group_id=row.group_id, event_id=row.event_id,
         recipient_label=row.recipient_label, recipient_email=row.recipient_email,
         kind=row.kind, send_email=row.send_email, in_app=row.in_app,
+        send_messenger=row.send_messenger, messenger_status=row.messenger_status,
         subject=row.subject, body_text=row.body_text, body_html=row.body_html,
         template_body=row.template_body, wording_source=row.wording_source,
         urgent=row.urgent, send_after=row.send_after, status=row.status,
@@ -221,14 +226,39 @@ def run_digest_now(
 
 
 @webhook_router.post("/mail/{provider}", response_model=MailEventResponse, status_code=201)
-def mail_webhook(
+async def mail_webhook(
     provider: str,
     body: MailWebhookRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> MailEventResponse:
-    """Record a provider's bounce/complaint (stubbed
-    receiver): a bounce also marks its notification failed,
-    so the address shows on the admin failure list."""
+    """Record a provider's bounce/complaint: a bounce also
+    marks its notification failed, so the address shows on
+    the admin failure list.
+
+    Signature (B-133): when the deployment sets
+    GPA_MAIL_WEBHOOK_SECRET, the provider signs the raw body
+    (HMAC-SHA256 hex in ``x-gpa-mail-signature``) and an
+    unsigned or mis-signed event is refused 401 and records
+    NOTHING — a provider's word about an address is only
+    worth acting on when it is really the provider's."""
+    settings = request.app.state.settings
+    if settings.mail_webhook_secret:
+        raw = await request.body()
+        expected = hmac.new(
+            settings.mail_webhook_secret.encode("utf-8"),
+            raw,
+            hashlib.sha256,
+        ).hexdigest()
+        given = request.headers.get("x-gpa-mail-signature", "")
+        if not hmac.compare_digest(expected, given):
+            raise AppError(
+                "token_invalid",
+                detail=(
+                    "The mail webhook signature did not verify — "
+                    "the event was not recorded."
+                ),
+            )
     row: MailEvent = notify_service.record_mail_event(
         db, provider=provider, email=body.email, event_type=body.event_type,
         notification_id=body.notification_id, detail=body.detail,

@@ -33,6 +33,7 @@ from gpa.errors import AppError
 from gpa.models.events import Rsvp
 from gpa.models.groups import Group
 from gpa.models.identity import User, now_utc
+from gpa.models.integrations import ExternalAccountLink
 from gpa.models.notifications import (
     CHANNELS,
     KIND_CATEGORIES,
@@ -45,6 +46,7 @@ from gpa.models.notifications import (
 from gpa.services import audit
 from gpa.services import jobs as job_service
 from gpa.services import mailer
+from gpa.services import messenger_transport
 
 NOTIFY_JOB_KIND = "notify"
 
@@ -283,6 +285,7 @@ def create_notification(
     """
     now = now or now_utc()
     category = category_of(kind)
+    send_messenger = False
     if recipient_user is not None and group is not None:
         send_email = channel_allowed(
             db, user=recipient_user, group=group, channel="email", category=category
@@ -290,6 +293,18 @@ def create_notification(
         in_app = channel_allowed(
             db, user=recipient_user, group=group, channel="in_app", category=category
         )
+        # The Messenger channel (B-134) is OPT-IN in a way the
+        # others are not: the member's switch must be on AND
+        # they must have linked a Messenger identity for this
+        # group (B-123's link) — "opted in there" is a link,
+        # not just an absence of refusal. The switch itself
+        # rides the same preference machinery as every
+        # channel, so opt-out and quiet hours are shared, not
+        # re-implemented (this slice's acceptance).
+        send_messenger = channel_allowed(
+            db, user=recipient_user, group=group,
+            channel="messenger", category=category,
+        ) and messenger_ref(db, user=recipient_user, group=group) is not None
         if not recipient_email:
             recipient_email = recipient_user.email
     elif recipient_user is not None:
@@ -299,7 +314,7 @@ def create_notification(
     else:
         # An outside guest: email is the only road to them.
         send_email, in_app = True, False
-    if not send_email and not in_app:
+    if not send_email and not in_app and not send_messenger:
         audit.record(
             db, actor="system:notify", action="notification.suppressed",
             group_id=group.id if group else None,
@@ -330,6 +345,7 @@ def create_notification(
         kind=kind,
         send_email=send_email,
         in_app=in_app,
+        send_messenger=send_messenger,
         subject=subject,
         body_text=body_text,
         body_html=body_html,
@@ -424,6 +440,61 @@ def notify_rsvp_promotion(
 # ------------------------------------------------------------------
 
 
+def messenger_ref(db: Session, *, user: User, group: Group) -> str | None:
+    """The member's linked Messenger identity in this group
+    (B-123's account link), or None. Keyed on the link row —
+    never on a name (the identity law, again)."""
+    link = (
+        db.query(ExternalAccountLink)
+        .filter(
+            ExternalAccountLink.group_id == group.id,
+            ExternalAccountLink.connector_kind == "messenger",
+            ExternalAccountLink.user_id == user.id,
+        )
+        .one_or_none()
+    )
+    return link.external_user_id if link is not None else None
+
+
+def _deliver_messenger(db: Session, notification: Notification) -> None:
+    """Attempt the Messenger channel for one row (B-134).
+
+    The outcome is recorded on the row's ``messenger_status``
+    and NEVER raised: Messenger is an extra road to the
+    member, and its state — above all this deployment's
+    ``driver_unavailable``, B-125's ungranted access — must
+    not fail or delay the channels that do carry the words.
+    """
+    user = (
+        db.get(User, notification.recipient_user_id)
+        if notification.recipient_user_id
+        else None
+    )
+    group = db.get(Group, notification.group_id) if notification.group_id else None
+    ref = (
+        messenger_ref(db, user=user, group=group)
+        if user is not None and group is not None
+        else None
+    )
+    if ref is None:
+        # The link that justified the channel at creation was
+        # removed before delivery. Recorded, plainly.
+        notification.messenger_status = "unlinked"
+        return
+    try:
+        messenger_transport.get_transport().send(
+            messenger_ref=ref,
+            subject=notification.subject,
+            body_text=notification.body_text,
+        )
+        notification.messenger_status = "sent"
+    except messenger_transport.MessengerUnavailable:
+        notification.messenger_status = "driver_unavailable"
+    except messenger_transport.MessengerTransportError:
+        notification.messenger_status = "failed"
+    db.flush()
+
+
 def deliver(db: Session, notification: Notification) -> None:
     """Send one notification through the transport.
 
@@ -477,6 +548,8 @@ def deliver(db: Session, notification: Notification) -> None:
             # (B-102 — a failure is data, not a side effect).
             db.commit()
             raise
+    if notification.send_messenger:
+        _deliver_messenger(db, notification)
     notification.status = "sent"
     notification.sent_at = now
     notification.last_error = ""
@@ -627,11 +700,11 @@ def record_mail_event(
     notification_id: str | None = None,
     detail: str = "",
 ) -> MailEvent:
-    """Record a provider webhook's word (B-102, stubbed
-    receiver): a bounce also marks its notification failed —
-    the address said no, and the failure list must show it.
-    (The real provider's signature checks land with it in
-    Phase 12; this receiver is the recorded shape.)"""
+    """Record a provider webhook's word (B-102): a bounce
+    also marks its notification failed — the address said
+    no, and the failure list must show it. (The receiver's
+    signature check landed with the real provider driver in
+    Phase 12, B-133 — see routers/notifications.py.)"""
     if event_type not in ("bounce", "complaint"):
         raise AppError(
             "validation_error",

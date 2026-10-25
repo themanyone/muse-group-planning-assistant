@@ -130,6 +130,13 @@ class SourceChunk(Base):
     position: Mapped[int] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text, default="")
     sender: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    # The speaker's id in the system the material came from,
+    # when the ingest knows one (Phase 11, B-123: live
+    # connectors carry stable speaker ids). This — never the
+    # display name in ``sender`` — is what an account link
+    # (models/integrations.py) resolves to a member. Paste,
+    # file, and email ingests know no such id and leave NULL.
+    sender_ref: Mapped[str | None] = mapped_column(String(240), nullable=True)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     timestamp_text: Mapped[str | None] = mapped_column(String(120), nullable=True)
     region_json: Mapped[str | None] = mapped_column(Text, nullable=True)

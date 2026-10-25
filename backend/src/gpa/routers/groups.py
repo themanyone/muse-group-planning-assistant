@@ -241,7 +241,7 @@ def list_seats(
 # --- Candidates: the review-queue stub (B-018) -------------------------------
 
 
-def _candidate_response(candidate) -> CandidateResponse:
+def _candidate_response(db, candidate) -> CandidateResponse:
     try:
         draft = json.loads(candidate.draft_json or "{}")
     except json.JSONDecodeError:
@@ -250,6 +250,7 @@ def _candidate_response(candidate) -> CandidateResponse:
         flags = json.loads(candidate.flags_json or "[]")
     except json.JSONDecodeError:
         flags = []
+    recorded, required = group_service.review_progress(db, candidate)
     return CandidateResponse(
         id=candidate.id, group_id=candidate.group_id, kind=candidate.kind,
         title=candidate.title, status=candidate.status,
@@ -264,6 +265,8 @@ def _candidate_response(candidate) -> CandidateResponse:
         merged_into_id=candidate.merged_into_id,
         resulting_entity_type=candidate.resulting_entity_type,
         resulting_entity_id=candidate.resulting_entity_id,
+        approvals_recorded=recorded,
+        approvals_required=required,
     )
 
 
@@ -280,23 +283,31 @@ def create_candidate(
         db, actor_label=principal.label, group=context.group,
         kind=body.kind, title=body.title,
     )
-    return _candidate_response(candidate)
+    return _candidate_response(db, candidate)
 
 
 @router.post("/{group_id}/candidates/{candidate_id}/approve", response_model=CandidateResponse)
 def approve_candidate(
     candidate_id: str,
-    context: GroupContext = Depends(require_group_role("organiser")),
+    context: GroupContext = Depends(require_group_role("member")),
     principal: Principal = Depends(require_scope("publish")),
     db: Session = Depends(get_db),
 ):
-    """Approve a candidate (organiser+ person with publish rights).
-    Seats are refused inside the service itself (B-018's rule)."""
+    """Approve a candidate (a person with publish rights).
+
+    The door is membership: WHO may approve is the group's own
+    review rule (settings pack, B-111), enforced inside the
+    service beside B-018's seat rule — a group may open
+    approval to members or hold it to admins, and may require
+    more than one distinct approver before a candidate is
+    decided; below the count this records the approval and the
+    candidate stays pending."""
     candidate = group_service.approve_candidate(
         db, actor_label=principal.label, actor_is_seat=principal.is_seat,
         group=context.group, candidate_id=candidate_id,
+        actor_user_id=principal.user_id, actor_role=context.role,
     )
-    return _candidate_response(candidate)
+    return _candidate_response(db, candidate)
 
 
 # --- Audit (B-019) -----------------------------------------------------------

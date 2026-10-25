@@ -55,7 +55,16 @@ def test_flyer_upload_creates_flyer_with_awaiting_description(client, app):
     # The thumbnail really exists in storage.
     assert flyer["thumbnail_key"]
     assert app.state.storage.exists(flyer["thumbnail_key"])
-    assert app.state.storage.exists(body["storage_key"])
+    # (B-141 supersession: the source response no longer carries
+    # its storage key — the key is read from the row instead.)
+    from gpa.models.sources import Source
+
+    session = app.state.db.session()
+    try:
+        row = session.get(Source, body["id"])
+        assert app.state.storage.exists(row.storage_key)
+    finally:
+        session.close()
 
 
 def test_rotated_phone_photo_reads_upright(client):

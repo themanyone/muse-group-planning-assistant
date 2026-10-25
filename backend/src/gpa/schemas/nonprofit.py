@@ -11,6 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from gpa.schemas.groups import ReminderRule
 from gpa.schemas.planning import RoleSlotResponse, role_slot_view
 
 # ------------------------------------------------------------------
@@ -202,6 +203,252 @@ def shift_gap_view(row: dict) -> ShiftGapResponse:
         missing=[MissingRole(**entry) for entry in row["missing"]],
         summary=row["summary"],
     )
+
+
+# ------------------------------------------------------------------
+# Resources + bookings (B-108)
+# ------------------------------------------------------------------
+
+
+class ResourceCreateRequest(BaseModel):
+    """Register a bookable item, with its keeper: a member's id
+    (their words become the label), or plain words."""
+
+    name: str = Field(min_length=1, max_length=160)
+    notes: str = ""
+    keeper_user_id: str | None = None
+    keeper_label: str = ""
+
+
+class ResourcePatchRequest(BaseModel):
+    """Edit an item; only sent fields change."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    notes: str | None = None
+    keeper_user_id: str | None = None
+    keeper_label: str | None = None
+
+
+class ResourceResponse(BaseModel):
+    """One bookable item and its keeper."""
+
+    id: str
+    group_id: str
+    name: str
+    notes: str = ""
+    keeper_user_id: str | None = None
+    keeper_label: str = ""
+    created_by: str
+    created_at: str
+    updated_at: str
+
+
+def resource_view(row) -> ResourceResponse:
+    """Build one resource's response from its row."""
+    return ResourceResponse(
+        id=row.id,
+        group_id=row.group_id,
+        name=row.name,
+        notes=row.notes,
+        keeper_user_id=row.keeper_user_id,
+        keeper_label=row.keeper_label,
+        created_by=row.created_by,
+        created_at=row.created_at.isoformat() + "Z",
+        updated_at=row.updated_at.isoformat() + "Z",
+    )
+
+
+class ResourceConflictFlag(BaseModel):
+    """One double-booking a booking takes part in (B-057's
+    shape, on the booking that created it)."""
+
+    kind: str = "resource_overlap"
+    resource_id: str
+    resource_name: str
+    other_event_id: str
+    other_event_title: str
+    message: str
+
+
+class ResourceBookingCreateRequest(BaseModel):
+    """Book one resource for the event in the path."""
+
+    resource_id: str
+
+
+class ResourceBookingResponse(BaseModel):
+    """One booking. ``conflicts`` carries the double-bookings
+    this booking takes part in — the booker sees the clash in
+    the response that makes it (flags, never blocks)."""
+
+    id: str
+    group_id: str
+    resource_id: str
+    resource_name: str = ""
+    event_id: str
+    booked_by: str
+    created_at: str
+    conflicts: list[ResourceConflictFlag] = Field(default_factory=list)
+
+
+def resource_booking_view(booking, resource_name: str = "", conflicts=()) -> ResourceBookingResponse:
+    """Build one booking's response from its row."""
+    return ResourceBookingResponse(
+        id=booking.id,
+        group_id=booking.group_id,
+        resource_id=booking.resource_id,
+        resource_name=resource_name,
+        event_id=booking.event_id,
+        booked_by=booking.booked_by,
+        created_at=booking.created_at.isoformat() + "Z",
+        conflicts=[ResourceConflictFlag(**flag) for flag in conflicts],
+    )
+
+
+# ------------------------------------------------------------------
+# Member import/export (B-110)
+# ------------------------------------------------------------------
+
+
+class ImportRowIssue(BaseModel):
+    """One row of the spreadsheet, named by its row number,
+    with the plain reason it was skipped or failed (B-110)."""
+
+    row: int
+    reason: str
+
+
+class MemberImportReportResponse(BaseModel):
+    """What an import did — or, on a dry run, exactly what it
+    WOULD do (the report is computed, then rolled back)."""
+
+    dry_run: bool
+    rows_total: int
+    created_users: int
+    memberships_created: int
+    enrolments: int
+    already_members: int
+    blank_rows: int
+    subgroups_created: list[str]
+    skipped: list[ImportRowIssue]
+    errors: list[ImportRowIssue]
+
+
+class MemberExportRow(BaseModel):
+    """One exported membership: the roster row, with the
+    person's sub-group names (B-110)."""
+
+    name: str
+    email: str
+    role: str
+    status: str
+    subgroups: list[str]
+
+
+# ------------------------------------------------------------------
+# Group settings pack (B-111)
+# ------------------------------------------------------------------
+
+
+class GroupSettingsResponse(BaseModel):
+    """The settings pack as read (B-111): the review-queue
+    rules, reminder defaults, the digest's moment, the
+    template set, and the AI budget cap (null = no cap)."""
+
+    review_min_role: str
+    review_approvals_required: int
+    reminder_rules: list[ReminderRule]
+    digest_weekday: int | None
+    digest_time: str
+    digest_enabled: bool
+    template_set: str
+    ai_daily_budget_micros: int | None
+    # Phase 10 memory dials (B-114/B-119).
+    prune_max_passes: int
+    prune_token_budget: int
+    prune_driver: str
+    # Phase 13 dials (B-141/B-144): storage quota + retention
+    # window; null = no quota / keep sources forever.
+    upload_quota_bytes: int | None
+    source_retention_days: int | None
+
+
+class GroupSettingsUpdateRequest(BaseModel):
+    """A settings-pack write. Every field is optional: a field
+    that is ABSENT is left as it was; a field that is present
+    governs — including null where null means something
+    (budget → no cap; digest weekday → the default)."""
+
+    review_min_role: str | None = Field(
+        default=None, pattern="^(member|organiser|admin|owner)$"
+    )
+    review_approvals_required: int | None = Field(default=None, ge=1, le=3)
+    reminder_rules: list[ReminderRule] | None = None
+    digest_weekday: int | None = Field(default=None, ge=0, le=6)
+    digest_time: str | None = Field(default=None, pattern=r"^(\d{2}:\d{2})?$")
+    digest_enabled: bool | None = None
+    template_set: str | None = Field(default=None, max_length=32)
+    ai_daily_budget_micros: int | None = Field(default=None, ge=0)
+    # The pass cap's le=3 is the engine's hard ceiling restated
+    # at the door (B-114); the service validates again.
+    prune_max_passes: int | None = Field(default=None, ge=1, le=3)
+    prune_token_budget: int | None = Field(default=None, ge=0, le=10_000_000)
+    prune_driver: str | None = Field(
+        default=None, pattern="^(hosted|local)$"
+    )
+    # Phase 13 dials. Present governs, including null (null
+    # lifts the quota / keeps sources forever); the service
+    # validates the ranges in plain words.
+    upload_quota_bytes: int | None = Field(default=None, ge=0)
+    source_retention_days: int | None = Field(default=None, ge=1, le=3650)
+
+
+# ------------------------------------------------------------------
+# Attendance (B-109) — aggregates only, by design
+# ------------------------------------------------------------------
+
+
+class AttendanceMarkRequest(BaseModel):
+    """Mark one member present at the event in the path."""
+
+    user_id: str
+
+
+class AttendanceMarkResponse(BaseModel):
+    """The mark's own receipt — the ONLY response in this area
+    that names a person, because it echoes the organiser's act
+    itself. There is no list shape beside it, deliberately."""
+
+    event_id: str
+    user_id: str
+    marked_by: str
+    marked_at: str
+
+
+class EventAttendanceResponse(BaseModel):
+    """One event's attendance, as a count and nothing else."""
+
+    event_id: str
+    attendee_count: int
+
+
+class AttendanceEventSummary(BaseModel):
+    """One recent event in the planning summary: the event and
+    its headcount. No people."""
+
+    event_id: str
+    title: str
+    starts_at: str
+    attendee_count: int
+
+
+class AttendanceSummaryResponse(BaseModel):
+    """"Last three club nights drew ~20", as data: recent
+    events, their headcounts, and the average."""
+
+    events_considered: int
+    average_attendance: float
+    events: list[AttendanceEventSummary] = Field(default_factory=list)
 
 
 def subgroup_view(subgroup, member_count: int = 0) -> SubGroupResponse:

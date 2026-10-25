@@ -431,6 +431,93 @@ def facebook_draft(
     return facebook_service.build_draft(db, event)
 
 
+class FacebookPublishResponse(BaseModel):
+    """Where one event stands on Facebook (B-131): its copy's
+    state, the outside id and URL once created, whether the
+    copy still matches the event here — and, on a press, what
+    the press did."""
+
+    status: str  # not_published | published | cancelled
+    external_id: str | None = None
+    url: str | None = None
+    differs: bool = False
+    action: str | None = None  # created | updated | cancelled | unchanged
+
+
+@router.post(
+    "/{group_id}/events/{event_id}/facebook",
+    response_model=FacebookPublishResponse,
+)
+def facebook_publish(
+    event_id: str,
+    request: Request,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """THE PRESS (B-131): create this event on the group's
+    connected Facebook Page, or bring its copy back into
+    agreement, or carry its cancellation out.
+
+    An outward act, so it happens ONLY here, on an
+    organiser's explicit call — edits made elsewhere show as
+    ``differs`` until this door is used, and nothing on the
+    Page side is ever read back into the event. In this
+    environment the client boundary is the recorded-fixture
+    double (or the unavailable client): no live Page exists
+    here, and the press records that honestly."""
+    from gpa.services import facebook_events as facebook_events_service
+
+    event = event_service.get_event(db, context.group, event_id)
+    return facebook_events_service.publish_event(
+        db, request.app.state.settings,
+        actor_label=principal.label, group=context.group, event=event,
+    )
+
+
+@router.get(
+    "/{group_id}/events/{event_id}/facebook",
+    response_model=FacebookPublishResponse,
+)
+def facebook_state(
+    event_id: str,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    db: Session = Depends(get_db),
+):
+    """This event's Facebook standing (organiser+): whether
+    a copy exists, where it lives, and whether it still
+    matches the event here."""
+    from gpa.services import facebook_events as facebook_events_service
+
+    event = event_service.get_event(db, context.group, event_id)
+    return facebook_events_service.facebook_state(
+        db, group=context.group, event=event
+    )
+
+
+@router.delete(
+    "/{group_id}/events/{event_id}/facebook",
+    response_model=FacebookPublishResponse,
+)
+def facebook_unpublish(
+    event_id: str,
+    request: Request,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Remove this event's Facebook copy (organiser+): the
+    reversible half of the press. The event here is
+    untouched."""
+    from gpa.services import facebook_events as facebook_events_service
+
+    event = event_service.get_event(db, context.group, event_id)
+    return facebook_events_service.unpublish_event(
+        db, request.app.state.settings,
+        actor_label=principal.label, group=context.group, event=event,
+    )
+
+
 # ------------------------------------------------------------------
 # Recurrence (B-052)
 # ------------------------------------------------------------------

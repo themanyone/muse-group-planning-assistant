@@ -35,6 +35,7 @@ ERROR_CODES: dict[str, tuple[int, str]] = {
     "last_owner": (409, "A group must keep at least one owner"),
     "email_taken": (409, "That email already has an account"),
     "rate_limited": (429, "Too many attempts — please wait a little"),
+    "quota_exceeded": (422, "That would exceed the group's storage quota"),
     "fetch_blocked": (422, "That address may not be fetched"),
     "fetch_failed": (502, "That page could not be read"),
     "internal_error": (500, "Something went wrong on our side"),

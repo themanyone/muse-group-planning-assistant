@@ -515,6 +515,16 @@ def create_event(
         group_id=group.id, entity_type="event", entity_id=event.id,
         detail={"source_id": source.id, "status": event.status},
     )
+    if event.status == "published":
+        # Born published = published, for the outward record
+        # too (Phase 11, B-128): the announcement rides the
+        # same transaction as the entry itself.
+        from gpa.services import outbound
+
+        outbound.emit(
+            db, group=group, kind="event.published",
+            data=outbound.event_data(event),
+        )
     db.commit()
     return event
 
@@ -643,6 +653,15 @@ def update_event(
             from gpa.services import reminders
 
             reminders.schedule_reminders(db, group=group, event=event)
+            # And the change is announced outward in the same
+            # transaction (Phase 11, B-128): subscribed
+            # webhooks hear event.changed with the field list.
+            from gpa.services import outbound
+
+            outbound.emit(
+                db, group=group, kind="event.changed",
+                data=outbound.event_data(event, fields=changed_fields),
+            )
     db.commit()
     return event
 
@@ -684,6 +703,13 @@ def publish_event(
     from gpa.services import reminders
 
     reminders.schedule_reminders(db, group=group, event=event)
+    # The publish is announced outward in the same transaction
+    # (Phase 11, B-128): subscribed webhooks hear event.published.
+    from gpa.services import outbound
+
+    outbound.emit(
+        db, group=group, kind="event.published", data=outbound.event_data(event)
+    )
     db.commit()
     return event
 
@@ -755,6 +781,16 @@ def cancel_event(
                 event_id=event.id,
                 urgent=True,
             )
+    if was_published:
+        # A published event's cancellation is announced outward
+        # in the same transaction (Phase 11, B-128) — a draft's
+        # cancellation announces nothing, as it never travelled.
+        from gpa.services import outbound
+
+        outbound.emit(
+            db, group=group, kind="event.cancelled",
+            data=outbound.event_data(event, reason=reason),
+        )
     audit.record(
         db, actor=actor_label, action="event.cancelled",
         group_id=group.id, entity_type="event", entity_id=event.id,
@@ -895,6 +931,9 @@ def generate_event_image(
         operation="vision:generate_image", prompt_name="generate_image",
         prompt_version=None,
     )
+    from gpa.services import files as file_service
+
+    file_service.enforce_upload_quota(db, group, len(image_bytes))
     storage_key = storage.put_bytes(image_bytes, "png")
     try:
         image = Image.open(io.BytesIO(image_bytes))

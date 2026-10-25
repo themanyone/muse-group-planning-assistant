@@ -204,6 +204,9 @@ def ingest_image(
     thumb.convert("RGB").save(thumb_buffer, "JPEG", quality=80)
     thumbnail_key = storage.put_bytes(thumb_buffer.getvalue(), "jpg")
 
+    # The quota is charged on the bytes that will be recorded
+    # (the normalised image); the thumbnail rides along (B-141).
+    file_service.enforce_upload_quota(db, group, len(encoded))
     storage_key = storage.put_bytes(encoded, ext)
     asset = FileAsset(
         group_id=group.id, storage_key=storage_key,

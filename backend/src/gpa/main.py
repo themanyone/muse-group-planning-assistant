@@ -31,13 +31,16 @@ from gpa.routers import (
     events,
     flyers,
     groups,
+    integrations,
     invites,
     jobs,
+    memory,
     meta,
     nonprofit,
     notifications,
     planning,
     polls,
+    privacy,
     rsvps,
     sources,
     templates,
@@ -45,6 +48,25 @@ from gpa.routers import (
     users,
 )
 from gpa.storage.local import LocalStorage
+
+# Path segments after which the NEXT segment is a credential
+# (B-145): calendar feeds, guest invites, the email-in door,
+# and inbound webhook sources all carry their token in the
+# URL itself. The access log keeps the route's shape and
+# drops the credential — a log file must never become a
+# second copy of every live token.
+_TOKEN_CARRYING_SEGMENTS = frozenset({"feed", "invites", "email-in", "source"})
+
+
+def _redact_path(path: str) -> str:
+    """The access log's view of a path: token-carrying
+    segments replaced with REDACTED, everything else
+    verbatim (routes must stay recognisable in the log)."""
+    parts = path.split("/")
+    for index, part in enumerate(parts[:-1]):
+        if part in _TOKEN_CARRYING_SEGMENTS:
+            parts[index + 1] = "REDACTED"
+    return "/".join(parts)
 
 
 def _configure_logging(settings: Settings) -> None:
@@ -59,9 +81,25 @@ def _configure_logging(settings: Settings) -> None:
         fmt = "%(asctime)s %(levelname)-7s %(name)s [%(request_id)s] %(message)s"
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(fmt))
+    # The request-id filter rides the HANDLER, not only the
+    # root logger: a logger's filters never run for records
+    # propagated UP from child loggers (httpx, sqlalchemy, …),
+    # but a handler's filters run for every record it emits —
+    # the handler is where "the format never fails" is made
+    # true (found at the Phase 9 gate, B-112: third-party
+    # records reached this formatter without a request_id and
+    # the formatter raised on them).
+    handler.addFilter(_RequestIdFilter())
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(logging.INFO)
+    # httpx/httpcore log every request's FULL URL at INFO
+    # (B-145 find) — and in this system URLs carry credentials
+    # (feeds, invites, member-pasted links). Their request
+    # lines are quieted to WARNING: errors still surface, URLs
+    # stop accumulating in log files.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 class _RequestIdFilter(logging.Filter):
@@ -97,10 +135,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ai_client.set_client(ai_client.build_client(settings))
     # The mail transport (Phase 8, B-095): the notification
     # outbox sends through this driver boundary — the file
-    # driver in dev; the provider driver lands in Phase 12.
+    # driver in dev; the SMTP provider driver in production
+    # (Phase 12, B-133).
     from gpa.services import mailer
 
     mailer.set_transport(mailer.build_transport(settings))
+    # The Messenger notification transport (Phase 12, B-134):
+    # the unavailable driver until access is granted (B-125).
+    from gpa.services import messenger_transport
+
+    messenger_transport.set_transport(messenger_transport.build_transport(settings))
+    # The reconciliation job handler (Phase 12, B-137)
+    # registers on import, like the other job services.
+    from gpa.services import reconcile as _reconcile  # noqa: F401
+    # The outbound webhook deliverer (Phase 11, B-128): its
+    # job handler receives only db + payload, so the process
+    # settings it unseals with are wired in here.
+    from gpa.services import outbound
+
+    outbound.set_settings(settings)
     app.state.db = Database(settings.database_url)
     app.state.storage = LocalStorage(settings.storage_dir)
     # The same backend, shared via the storage registry so job
@@ -124,9 +177,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         response.headers["X-Request-Id"] = request_id
         logging.getLogger("gpa.access").info(
-            "%s %s -> %s", request.method, request.url.path, response.status_code,
+            "%s %s -> %s",
+            request.method,
+            _redact_path(request.url.path),
+            response.status_code,
             extra={"request_id": request_id},
         )
+        return response
+
+    @app.middleware("http")
+    async def embed_cors_middleware(request: Request, call_next):
+        """Embed CORS (B-135): the public + embed paths answer a
+        browser's Origin ONLY when some group registered it.
+        An unregistered origin gets NOTHING — no Allow-Origin
+        header, so the browser blocks the read — and a
+        preflight from one is answered empty for the same
+        reason. Every other path is untouched."""
+        from fastapi.responses import Response as _Response
+
+        path = request.url.path
+        origin = request.headers.get("origin")
+        on_embed_paths = path.startswith("/api/v1/public/") or path.startswith(
+            "/api/v1/embed/"
+        )
+        if not (on_embed_paths and origin):
+            return await call_next(request)
+        from gpa.services import embed as embed_service
+
+        session = app.state.db.session()
+        try:
+            registered = embed_service.origin_registered(session, origin)
+        finally:
+            session.close()
+        if request.method == "OPTIONS":
+            response = _Response(status_code=204)
+            if registered:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = (
+                    request.headers.get("access-control-request-headers", "*")
+                )
+                response.headers["Access-Control-Max-Age"] = "600"
+                response.headers["Vary"] = "Origin"
+            return response
+        response = await call_next(request)
+        if registered:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
         return response
 
     # Routers: meta (health), then the /api/v1 domains.
@@ -138,9 +235,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(events.router)
     app.include_router(calendar.router)
     app.include_router(calendar.public_router)
+    app.include_router(calendar.embed_router)
     app.include_router(discussion.router)
     app.include_router(rsvps.router)
     app.include_router(flyers.router)
+    # Privacy BEFORE sources: its literal segments
+    # (sources/permissions) must not be swallowed by the
+    # sources router's {source_id} path (Phase 13).
+    app.include_router(privacy.router)
     app.include_router(sources.router)
     app.include_router(sources.email_router)
     app.include_router(truth.router)
@@ -157,4 +259,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(nonprofit.subgroups_router)
     app.include_router(nonprofit.announcements_router)
     app.include_router(nonprofit.shifts_router)
+    app.include_router(nonprofit.resources_router)
+    app.include_router(nonprofit.attendance_router)
+    app.include_router(nonprofit.members_io_router)
+    app.include_router(nonprofit.settings_router)
+    app.include_router(memory.router)
+    app.include_router(integrations.router)
+    app.include_router(integrations.webhook_router)
+
+    # The agent pack (Phase 11, B-129): the seat's working
+    # surface carries the "agent" tag in the contract, so a
+    # frontend — or an agent framework — discovers it in the
+    # schema itself. Done here, after every router is in, so
+    # the exported OPENAPI.json and the live schema agree.
+    from gpa.services import agent_pack
+
+    agent_pack.tag_agent_operations(app)
     return app

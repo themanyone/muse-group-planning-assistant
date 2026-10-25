@@ -10,11 +10,11 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–8 complete · Phase 9 (the nonprofit pack) under way |
+| 📍 Where we are | Phases 0–13 complete · Phase 14 (submission freeze and demo proof) in progress |
 |---|---|
-| 🧩 Roadmap | **104 of 340 slices** built — B-001 → B-104 of a 28-phase roadmap |
-| ✅ Tests | **673 passing**, counted from one clean run against the committed tree |
-| 📜 API contract | **133 paths · 150 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
+| 🧩 Roadmap | **149 of 350 slices** built — B-001 → B-149 of a 29-phase roadmap |
+| ✅ Tests | **841 passing**, counted from one clean run against the committed tree |
+| 📜 API contract | **187 paths · 217 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) today, PostgreSQL on the roadmap |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
@@ -84,7 +84,7 @@ sentence.
 
 ## ✨ What it can do today
 
-Everything below is built, tested, and committed (Phases 0–8).
+Everything below is built, tested, and committed (Phases 0–13, plus Phase 14's demo slices).
 
 ### 📥 Feed it anything
 
@@ -425,8 +425,8 @@ section comes straight out of it.
 
 ## 📜 The API at a glance
 
-The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **133 paths, 150
-schemas** at the Phase 8 freeze — with generated TypeScript types in
+The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **187 paths, 217
+schemas** at the Phase 13 freeze — with generated TypeScript types in
 [`frontend_types.ts`](frontend_types.ts) and a ready-to-fire Bruno
 collection in [`collections/`](collections/). The frontend crew builds
 against these files, never against our intentions.
@@ -498,16 +498,16 @@ human edits applied).
 > run against the final committed tree**, and the arithmetic must
 > reconcile: previous total + new tests = collected = passed. A number
 > from a mid-edit run is not a number; it's a rumour. The current count —
-> **673** — was taken that way, twice, by two different runners, on a tree
+> **841** — was taken that way, twice, by two different runners, on a tree
 > whose `/tmp` had first been checked for room to breathe.
 
 ---
 
 ## 🗺️ The roadmap & the ZIP train
 
-The backend is built to a written roadmap of **340 slices in 28 phases** —
+The backend is built to a written roadmap of **350 slices in 29 phases** —
 small, individually tested, individually committed steps, built strictly in
-order. Phases 0–14 are the hackathon build; 15–27 carry the same discipline
+order. Phases 0–14 are the hackathon build; 15–28 carry the same discipline
 past it (hardening, a terminal app, an MCP server with full API parity,
 embedding into other apps — Samtal first — and the machinery that keeps the
 code provably the team's own work).
@@ -523,11 +523,11 @@ code provably the team's own work).
 | 6 | De-duplication, changes, and truth-keeping | B-075 → B-082 | ✅ |
 | 7 | Planning: tasks, decisions, polls, checklists | B-083 → B-094 | ✅ |
 | 8 | Reminders, notifications, and digests | B-095 → B-104 | ✅ |
-| 9 | Members, nonprofit pack, and resources | B-105 → B-112 | ⬜ |
-| 10 | Context pruning and group memory | B-113 → B-122 | ⬜ |
-| 11 | Samtal bridge and live sources | B-123 → B-130 | ⬜ |
-| 12 | External publishing integrations | B-131 → B-138 | ⬜ |
-| 13 | Security hardening, privacy, and erasure | B-139 → B-146 | ⬜ |
+| 9 | Members, nonprofit pack, and resources | B-105 → B-112 | ✅ |
+| 10 | Context pruning and group memory | B-113 → B-122 | ✅ |
+| 11 | Samtal bridge and live sources | B-123 → B-130 | ✅ |
+| 12 | External publishing integrations | B-131 → B-138 | ✅ |
+| 13 | Security hardening, privacy, and erasure | B-139 → B-146 | ✅ |
 | 14 | Submission freeze and demo proof | B-147 → B-151 | ⬜ |
 | 15 | Deployment and operations | B-152 → B-156 | ⬜ |
 | 16 | Scale and second integrations | B-157 → B-160 | ⬜ |
@@ -542,6 +542,7 @@ code provably the team's own work).
 | 25 | Built to be built in — Samtal first, then any host app | B-296 → B-310 | ⬜ |
 | 26 | Really user friendly: built-in help, a Doctor, a background service | B-311 → B-330 | ⬜ |
 | 27 | Clean provenance: our own code, our own choice | B-331 → B-340 | ⬜ |
+| 28 | MCP, the database bus, and process topology | B-341 → B-350 | ⬜ |
 
 Releases travel as **ZIPs**, built by `scripts/make_release_zip.py` — never
 assembled by hand. A ZIP is a promise: the runnable tree, the frozen
@@ -555,8 +556,8 @@ slice range it covers. Anything inside that isn't finished is labelled
 |---|---|---|
 | **ZIP-0** — Foundation | → B-010 | ✅ built, in [`releases/`](releases/) with its sha256 sidecar |
 | **ZIP-Alpha** | → B-048 | folded into Beta — no separate Alpha was cut |
-| **ZIP-Beta** | → B-104 | ✅ built 2026-10-24 (travels with the team's ZIP releases) |
-| **ZIP-RC** | → B-138 | ⬜ |
+| **ZIP-Beta** | → B-104 | ✅ built — `releases/gpa-backend-v0.3-2026-10-24.zip` (762,377 bytes, sha256 `2c767bae…`), sidecar alongside |
+| **ZIP-RC** | → B-138 | ✅ built — `releases/gpa-backend-v0.4-2026-10-25.zip` (1,073,243 bytes, sha256 `05ff1dda…`), sidecar alongside |
 | **ZIP-Final** | → B-151 | ⬜ |
 
 ## 👥 Who builds what
@@ -565,8 +566,9 @@ slice range it covers. Anything inside that isn't finished is labelled
 - **Geoffrey + Henry** — the frontend, against `OPENAPI.json` and
   [`FRONTEND_HANDOFF.md`](FRONTEND_HANDOFF.md).
 
-Business and licensing decisions rest with the team together; this repo
-keeps every option open by keeping its provenance clean — all code here is
+The project's licence is **GPLv2** (GNU General Public License
+version 2), decided by Volmarr on 2026-10-24. This repo keeps its
+provenance clean — all code here is
 the team's own original work, and dependencies arrive only as installed,
 lockfile-recorded packages.
 
@@ -574,9 +576,10 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **This README describes the verified tree (Phases 0–8).** Phase 9 is
-  building now; everything past B-104 in the roadmap table above is a
-  plan, not a claim.
+- **This README describes the committed tree (Phases 0–13, plus
+  Phase 14's demo slices).** Phase 14's submission pack and freeze drill
+  are in the forge; everything past B-149 in the roadmap table above is
+  a plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.
 - **Email is a driver boundary.** The outbox, templates, preferences, and

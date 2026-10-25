@@ -28,6 +28,14 @@ EXPECTED_PROMPTS = {
     "briefing",
     "reminder_wording",
     "ask_memory",
+    # Phase 10 (B-113/B-114): the pruning engine's two judging
+    # prompts — pass 1, and the second-look reconsider pass.
+    "prune",
+    "prune_reconsider",
+    # Phase 10 (B-118): the recap drafter and the newsletter
+    # weaver — the two ends of the memory loop.
+    "recap",
+    "newsletter",
 }
 
 # Current versions, per prompt. Superseded by Phase 5 (B-063):

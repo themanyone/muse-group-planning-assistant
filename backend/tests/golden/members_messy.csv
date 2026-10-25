@@ -1,0 +1,9 @@
+name,email,sub-group
+Ana Alvarez,ana@example.org,Kitchen Crew
+Ben Boyd,ben@example.org,
+"Carter, Cy",cy@example.org,Kitchen Crew
+Ana Alvarez,ana@example.org,Kitchen Crew
+,,
+Dana Noemail,not-an-email,Kitchen Crew
+Eli Extra,eli@example.org,Kitchen Crew,EXTRA
+Frank,frank@example.org

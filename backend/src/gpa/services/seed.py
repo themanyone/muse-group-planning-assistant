@@ -78,6 +78,32 @@ def load_seed_data(db: Session, data: dict) -> dict:
                 db.add(
                     Membership(user_id=owner.id, group_id=group.id, role="owner", status="active")
                 )
+    # Extra memberships (Phase 14, B-147): a seed may enrol
+    # people beyond each group's owner —
+    # ``{group_slug, user_email, role?}`` — idempotently, so the
+    # demo story can carry a whole cast, not just owners.
+    for spec in data.get("memberships", []):
+        user = users_by_email.get(spec["user_email"]) or db.query(User).filter(
+            User.email == spec["user_email"]
+        ).one_or_none()
+        group = db.query(Group).filter(Group.slug == spec["group_slug"]).one_or_none()
+        if user is None or group is None:
+            continue
+        membership = (
+            db.query(Membership)
+            .filter(Membership.user_id == user.id, Membership.group_id == group.id)
+            .one_or_none()
+        )
+        if membership is None:
+            db.add(
+                Membership(
+                    user_id=user.id,
+                    group_id=group.id,
+                    role=spec.get("role", "member"),
+                    status=spec.get("status", "active"),
+                )
+            )
+
     # Phase 7 (B-091): every seeded database also carries the
     # global starter templates (group_id NULL), idempotent like
     # everything else here. Their counts ride under their own

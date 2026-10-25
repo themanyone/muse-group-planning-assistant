@@ -50,10 +50,11 @@ from gpa.db import Base
 from gpa.models.identity import new_id, now_utc
 
 # The channels a notification can travel by (B-095). Email and
-# the in-app inbox exist now; Messenger joins in Phase 12 as one
-# more value here — the preference and policy machinery is
-# already channel-shaped.
-CHANNELS: tuple[str, ...] = ("email", "in_app")
+# the in-app inbox exist since Phase 8; Messenger joins in
+# Phase 12 (B-134) as one more value here — the preference and
+# policy machinery was already channel-shaped, so the new
+# channel inherits opt-in and quiet-hours rules unchanged.
+CHANNELS: tuple[str, ...] = ("email", "in_app", "messenger")
 
 # Notification kinds (the row's exact kind) and the preference
 # CATEGORIES they answer to (B-100 names invites / reminders /
@@ -103,6 +104,18 @@ class Notification(Base):
     # Channels, decided at creation by preference (B-100).
     send_email: Mapped[bool] = mapped_column(Boolean, default=True)
     in_app: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The Messenger channel (Phase 12, B-134): set at creation
+    # only when the member opted in (channel switch on) AND
+    # linked a Messenger identity for this group — there is no
+    # road to a person the group cannot name over there.
+    # ``messenger_status`` records what the channel did at
+    # delivery: "" (not attempted / not yet), "sent",
+    # "driver_unavailable" (B-125's access was never granted;
+    # the other channels carried the load), "failed" (the
+    # driver refused), or "unlinked" (the link was removed
+    # between creation and delivery).
+    send_messenger: Mapped[bool] = mapped_column(Boolean, default=False)
+    messenger_status: Mapped[str] = mapped_column(String(32), default="")
     subject: Mapped[str] = mapped_column(String(240), default="")
     body_text: Mapped[str] = mapped_column(Text, default="")
     body_html: Mapped[str] = mapped_column(Text, default="")
@@ -153,7 +166,7 @@ class NotificationPreference(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     group_id: Mapped[str] = mapped_column(ForeignKey("groups.id"), index=True)
-    channel: Mapped[str] = mapped_column(String(16))  # "email" | "in_app"
+    channel: Mapped[str] = mapped_column(String(16))  # "email" | "in_app" | "messenger"
     kind_category: Mapped[str] = mapped_column(String(32))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(

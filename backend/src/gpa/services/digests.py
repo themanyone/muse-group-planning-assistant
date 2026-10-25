@@ -29,7 +29,7 @@ import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, PackageLoader
 from sqlalchemy.orm import Session
 
 from gpa.config import Settings
@@ -48,9 +48,23 @@ DIGEST_JOB_KIND = "digest_run"
 DEFAULT_DIGEST_WEEKDAY = 0  # Monday
 DEFAULT_DIGEST_TIME = "08:00"
 
+def _autoescape(template_name: str | None) -> bool:
+    """Escape by file KIND (B-142): "digest.html.j2" is markup
+    and escapes; "digest.txt.j2" is plain text and must not —
+    escaping it put literal "&lt;" in members' text mail, and
+    Jinja's select_autoescape keys on the final extension
+    alone (".j2" for both), so the decision is spelled out
+    here instead of inferred from suffix lists."""
+    if template_name is None:
+        return True
+    return ".html." in template_name or template_name.endswith(
+        (".html", ".htm", ".xml")
+    )
+
+
 _env = Environment(
     loader=PackageLoader("gpa", "templates"),
-    autoescape=select_autoescape(["html", "j2"]),
+    autoescape=_autoescape,
     trim_blocks=True,
     lstrip_blocks=True,
 )

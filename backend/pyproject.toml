@@ -3,14 +3,17 @@
 # This file is the single source of truth for the Python package: what
 # the code is called, what other packages it needs (as *installed*
 # dependencies only — roadmap D-46), and how the tools are configured.
-# There is deliberately NO licence field here: the project's licence
-# is undecided (roadmap D-25/D-46) and this file must not presume one.
+# The project's licence is GPLv2 — GNU General Public License
+# version 2 — decided by Volmarr on 2026-10-24 ("GPLv2 is the
+# project liscense"), superseding the earlier undecided posture
+# (roadmap D-25). The licence field below states it in SPDX form.
 
 [project]
 name = "group-planning-assistant-backend"
 version = "0.1.0"
 description = "Group Planning Assistant — Python backend (planning from conversation, flyers, and newsletters, always with a human review queue)."
 readme = "README.md"
+license = {text = "GPL-2.0-only"}
 requires-python = ">=3.12"
 dependencies = [
     # Web framework + server (roadmap D-02/D-03).

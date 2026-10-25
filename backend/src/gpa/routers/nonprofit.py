@@ -7,7 +7,7 @@ one door (B-017) — and the permission each route needs is named
 in its dependency, never hand-rolled in the handler.
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from gpa.db import get_db
@@ -22,6 +22,19 @@ from gpa.schemas.nonprofit import (
     AnnouncementCreateRequest,
     AnnouncementPatchRequest,
     AnnouncementResponse,
+    AttendanceMarkRequest,
+    AttendanceMarkResponse,
+    AttendanceSummaryResponse,
+    EventAttendanceResponse,
+    GroupSettingsResponse,
+    GroupSettingsUpdateRequest,
+    MemberExportRow,
+    MemberImportReportResponse,
+    ResourceBookingCreateRequest,
+    ResourceBookingResponse,
+    ResourceCreateRequest,
+    ResourcePatchRequest,
+    ResourceResponse,
     ShiftCreateRequest,
     ShiftGapReportResponse,
     ShiftResponse,
@@ -31,11 +44,17 @@ from gpa.schemas.nonprofit import (
     SubGroupPatchRequest,
     SubGroupResponse,
     announcement_view,
+    resource_booking_view,
+    resource_view,
     shift_gap_view,
     shift_view,
     subgroup_view,
 )
 from gpa.services import announcements as announcement_service
+from gpa.services import attendance as attendance_service
+from gpa.services import member_io as member_io_service
+from gpa.services import settings_pack as settings_pack_service
+from gpa.services import resources as resource_service
 from gpa.services import shifts as shift_service
 from gpa.services import subgroups as subgroup_service
 
@@ -368,6 +387,242 @@ def shift_gaps(
     return ShiftGapReportResponse(events=[shift_gap_view(row) for row in rows])
 
 
+# ------------------------------------------------------------------
+# Resources + bookings (B-108)
+# ------------------------------------------------------------------
+
+resources_router = APIRouter(prefix="/api/v1/groups", tags=["resources"])
+
+
+@resources_router.post(
+    "/{group_id}/resources", response_model=ResourceResponse, status_code=201
+)
+def create_resource(
+    body: ResourceCreateRequest,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Register a bookable item (organiser+)."""
+    row = resource_service.create_resource(
+        db, actor_label=principal.label, group=context.group,
+        name=body.name, notes=body.notes,
+        keeper_user_id=body.keeper_user_id, keeper_label=body.keeper_label,
+    )
+    return resource_view(row)
+
+
+@resources_router.get("/{group_id}/resources", response_model=list[ResourceResponse])
+def list_resources(
+    context: GroupContext = Depends(require_group_role("member")),
+    db: Session = Depends(get_db),
+):
+    """The group's bookable items, name order."""
+    return [
+        resource_view(row)
+        for row in resource_service.list_resources(db, context.group)
+    ]
+
+
+@resources_router.patch(
+    "/{group_id}/resources/{resource_id}", response_model=ResourceResponse
+)
+def update_resource(
+    resource_id: str,
+    body: ResourcePatchRequest,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Edit an item (organiser+)."""
+    row = resource_service.update_resource(
+        db, actor_label=principal.label, group=context.group,
+        resource_id=resource_id, changes=body.model_dump(exclude_unset=True),
+    )
+    return resource_view(row)
+
+
+@resources_router.delete("/{group_id}/resources/{resource_id}", status_code=204)
+def delete_resource(
+    resource_id: str,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Remove an item and its bookings (organiser+)."""
+    resource_service.delete_resource(
+        db, actor_label=principal.label, group=context.group,
+        resource_id=resource_id,
+    )
+
+
+@resources_router.post(
+    "/{group_id}/events/{event_id}/resource-bookings",
+    response_model=ResourceBookingResponse,
+    status_code=201,
+)
+def book_resource(
+    event_id: str,
+    body: ResourceBookingCreateRequest,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Book a resource for an event (organiser+). The response
+    carries any double-booking this creates — flagged, never
+    blocked (B-057's law, completed by B-108)."""
+    booking, conflicts = resource_service.book_resource(
+        db, actor_label=principal.label, group=context.group,
+        viewer_role=context.role, viewer_user_id=principal.user_id,
+        event_id=event_id, resource_id=body.resource_id,
+    )
+    resource = resource_service.get_resource(db, context.group, booking.resource_id)
+    return resource_booking_view(booking, resource.name, conflicts)
+
+
+@resources_router.get(
+    "/{group_id}/events/{event_id}/resource-bookings",
+    response_model=list[ResourceBookingResponse],
+)
+def list_event_bookings(
+    event_id: str,
+    context: GroupContext = Depends(require_group_role("member")),
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    """What an event has booked."""
+    from gpa.services import events as event_service
+
+    event = event_service.get_visible_event(
+        db, context.group, event_id, context.role,
+        viewer_user_id=principal.user_id,
+    )
+    return [
+        resource_booking_view(booking, resource.name)
+        for booking, resource in resource_service.list_bookings_for_event(
+            db, context.group, event
+        )
+    ]
+
+
+@resources_router.delete(
+    "/{group_id}/resource-bookings/{booking_id}", status_code=204
+)
+def unbook_resource(
+    booking_id: str,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Release one booking (organiser+)."""
+    resource_service.unbook(
+        db, actor_label=principal.label, group=context.group,
+        booking_id=booking_id,
+    )
+
+
+# ------------------------------------------------------------------
+# Attendance (B-109) — aggregates only, by design
+# ------------------------------------------------------------------
+
+attendance_router = APIRouter(prefix="/api/v1/groups", tags=["attendance"])
+
+
+@attendance_router.post(
+    "/{group_id}/events/{event_id}/attendance",
+    response_model=AttendanceMarkResponse,
+    status_code=201,
+)
+def mark_attendance(
+    event_id: str,
+    body: AttendanceMarkRequest,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Mark a member present (organiser+). Idempotent — the
+    receipt is the act's own echo, not a read of anyone's
+    record."""
+    row = attendance_service.mark_attendance(
+        db, actor_label=principal.label, group=context.group,
+        viewer_role=context.role, viewer_user_id=principal.user_id,
+        event_id=event_id, user_id=body.user_id,
+    )
+    return AttendanceMarkResponse(
+        event_id=row.event_id, user_id=row.user_id,
+        marked_by=row.marked_by, marked_at=row.created_at.isoformat() + "Z",
+    )
+
+
+@attendance_router.delete(
+    "/{group_id}/events/{event_id}/attendance/{user_id}", status_code=204
+)
+def unmark_attendance(
+    event_id: str,
+    user_id: str,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Correct a mark (organiser+)."""
+    attendance_service.unmark_attendance(
+        db, actor_label=principal.label, group=context.group,
+        event_id=event_id, user_id=user_id,
+    )
+
+
+@attendance_router.get(
+    "/{group_id}/events/{event_id}/attendance",
+    response_model=EventAttendanceResponse,
+)
+def read_event_attendance(
+    event_id: str,
+    context: GroupContext = Depends(require_group_role("member")),
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_db),
+):
+    """One event's headcount. A count — there is no per-person
+    read here, deliberately (B-109's refusal)."""
+    from gpa.services import events as event_service
+
+    event = event_service.get_visible_event(
+        db, context.group, event_id, context.role,
+        viewer_user_id=principal.user_id,
+    )
+    return EventAttendanceResponse(
+        event_id=event.id,
+        attendee_count=attendance_service.event_headcount(db, event),
+    )
+
+
+@attendance_router.get(
+    "/{group_id}/attendance/summary", response_model=AttendanceSummaryResponse
+)
+def attendance_summary(
+    recent: int = Query(default=3, ge=1, le=52),
+    context: GroupContext = Depends(require_group_role("member")),
+    db: Session = Depends(get_db),
+):
+    """Recent events + headcounts + the average — the planning
+    numbers, with no person's record anywhere in them."""
+    summary = attendance_service.attendance_summary(
+        db, context.group, recent=recent
+    )
+    return AttendanceSummaryResponse(
+        events_considered=summary["events_considered"],
+        average_attendance=summary["average_attendance"],
+        events=[
+            {
+                "event_id": row["event_id"],
+                "title": row["title"],
+                "starts_at": row["starts_at"].isoformat() + "Z",
+                "attendee_count": row["attendee_count"],
+            }
+            for row in summary["events"]
+        ],
+    )
+
+
 @subgroups_router.delete(
     "/{group_id}/subgroups/{subgroup_id}/members/{user_id}", status_code=204
 )
@@ -384,3 +639,93 @@ def unenroll_member(
         actor_role=context.role, group=context.group,
         subgroup_id=subgroup_id, user_id=user_id,
     )
+
+
+members_io_router = APIRouter(prefix="/api/v1/groups", tags=["members-io"])
+
+
+@members_io_router.post(
+    "/{group_id}/members/import", response_model=MemberImportReportResponse
+)
+def import_members(
+    csv_text: str = Body(media_type="text/plain"),
+    dry_run: bool = Query(default=False),
+    context: GroupContext = Depends(require_group_role("admin")),
+    principal: Principal = Depends(require_scope("admin")),
+    db: Session = Depends(get_db),
+):
+    """Import a membership spreadsheet (admin+): CSV of name,
+    email, sub-group, posted as the raw body.
+
+    The answer is a report — what was created, counted,
+    skipped, and refused, row by spreadsheet row number. With
+    ``?dry_run=true`` the same report is computed and the work
+    rolled back: what WOULD happen, truthfully.
+    """
+    report = member_io_service.import_members(
+        db, actor_label=principal.label, group=context.group,
+        csv_text=csv_text, dry_run=dry_run,
+    )
+    return MemberImportReportResponse(**report)
+
+
+@members_io_router.get(
+    "/{group_id}/members/export", response_model=list[MemberExportRow]
+)
+def export_members(
+    format: str = Query(default="json"),
+    context: GroupContext = Depends(require_group_role("admin")),
+    principal: Principal = Depends(require_scope("admin")),
+    db: Session = Depends(get_db),
+):
+    """The roster out (admin+): JSON by default, or
+    ``?format=csv`` for the spreadsheet the group keeps."""
+    if format == "csv":
+        return Response(
+            content=member_io_service.export_csv(db, context.group),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": 'attachment; filename="members.csv"'
+            },
+        )
+    return [
+        MemberExportRow(**row)
+        for row in member_io_service.export_rows(db, context.group)
+    ]
+
+
+settings_router = APIRouter(prefix="/api/v1/groups", tags=["settings"])
+
+
+@settings_router.get(
+    "/{group_id}/settings", response_model=GroupSettingsResponse
+)
+def read_settings(
+    context: GroupContext = Depends(require_group_role("organiser")),
+    db: Session = Depends(get_db),
+):
+    """The group's settings pack (organiser+): review rules,
+    reminder defaults, digest moment, template set, AI budget."""
+    return GroupSettingsResponse(
+        **settings_pack_service.settings_view(context.group)
+    )
+
+
+@settings_router.put(
+    "/{group_id}/settings", response_model=GroupSettingsResponse
+)
+def update_settings(
+    body: GroupSettingsUpdateRequest,
+    context: GroupContext = Depends(require_group_role("admin")),
+    principal: Principal = Depends(require_scope("admin")),
+    db: Session = Depends(get_db),
+):
+    """Write the settings pack (admin+). Only the fields sent
+    are changed; each is validated whole, the change is
+    audited with its old and new values, and a digest change
+    re-anchors the digest chain before the answer is sent."""
+    view = settings_pack_service.update_settings(
+        db, actor_label=principal.label, group=context.group,
+        changes=body.model_dump(exclude_unset=True),
+    )
+    return GroupSettingsResponse(**view)

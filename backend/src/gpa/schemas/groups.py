@@ -147,3 +147,8 @@ class CandidateResponse(BaseModel):
     merged_into_id: str | None = None
     resulting_entity_type: str | None = None
     resulting_entity_id: str | None = None
+    # Phase 9 (B-111): the multi-approver review progress — how
+    # many distinct approvers have recorded approval, and how
+    # many the group's settings require before it is decided.
+    approvals_recorded: int = 0
+    approvals_required: int = 1

@@ -23,11 +23,15 @@ uv run alembic upgrade head   # migration path (GPA_DATABASE_URL)
 ```
 
 Verified 2026-10-24: fresh `uv sync` → `./run.sh` → `/health` ok;
-Alembic up/down/up clean; **673 tests, all passing** (104/340 slices:
-Phases 0–8 complete) — the count taken from one clean run against
-the final Phase 8 tree (642 before Phase 8 + 31 new = 673,
-collected count reconciled). ZIP-Beta cut at the Phase 8 gate
-(releases/gpa-backend-v0.3-2026-10-24.zip, §8 anatomy).
+Alembic up/down/up clean; **841 tests, all passing** (149/350 slices:
+Phases 0–13 complete + Phase 14 B-147→B-149) — the count taken from
+one clean full run against the B-149 tree 2026-10-25 (835 at the
+Phase 13 gate + 6 new Phase 14 tests = 841, reconciled from the
+run's own log; the run was slow under shared VM load, ~45 min).
+ZIP-Beta cut at the Phase 8 gate
+(releases/gpa-backend-v0.3-2026-10-24.zip, §8 anatomy); ZIP-RC cut
+at the Phase 12 gate (releases/gpa-backend-v0.4-2026-10-25.zip,
+§8 anatomy) — Phases 9–12 fold into it.
 Demo verified offline on the mock driver (seed + health + demo
 login, no API key, no network).
 
@@ -781,8 +785,517 @@ login, no API key, no network).
   the phase's own slices win). (5) GroupResponse grew comms
   fields (additive).
 
+### Phase 9 — Members, nonprofit pack, resources (B-105 → B-112): COMPLETE (2026-10-24)
+- Tables live in models/nonprofit.py (SubGroup,
+  SubGroupMembership, Announcement, Resource, ResourceBooking,
+  AttendanceMark, CandidateApproval); Group gained
+  review_min_role (default "organiser"),
+  review_approvals_required (default 1), template_set
+  (default "starter"); Event/Task gained subgroup_id; RoleSlot
+  gained starts_at/ends_at. Migration 0012_phase9_nonprofit.
+- B-105 sub-groups: THE rule lives in services/subgroups.py —
+  visible_subgroup_ids(db, group, *, user_id, role) → None =
+  organiser+ unrestricted, else the enrolled set; scoped-out
+  items are 404/absent on member-facing reads (events list +
+  detail, tasks list/detail/PATCH, calendar agenda/month/
+  tonight/conflicts, planning search incl. decisions/questions
+  via their event, announcements). Enrolment: organiser manages
+  anyone; a member enrols/unenrols THEMSELVES; per-sub-group
+  role grant is organiser-only; enrollee must be an ACTIVE
+  group member (422); duplicate 409. Deleting a sub-group with
+  scoped events/tasks/announcements is refused 409 with counts
+  — a delete must never silently widen an audience.
+- B-106 announcements: services/announcements.py; the B-043
+  law restated for humans — _require_person refuses seats in
+  the service ("announcement ≠ publication"). Pinned first,
+  then newest; expired posts leave the board unless an
+  organiser passes include_expired (the router honours the
+  flag for organiser+ only).
+- B-107 shifts: services/shifts.py — a shift is headcount
+  RoleSlot rows sharing role + window; claim/release rides the
+  B-088 slot endpoints (one claim door, no second truth).
+  gap_report: published events in a window, only events WITH
+  gaps, missing roles in FIRST-OPENED order, one-line summary
+  ("Saturday still needs a driver and a door person."; count
+  1 → "a {role}", else "{count} {role}s").
+- B-108 resources: services/resources.py — items with a keeper
+  (keeper words default from membership); duplicate name 409;
+  booking a cancelled event 422; duplicate (resource, event)
+  booking 409. Double-booking is ALLOWED and flagged:
+  calendar conflicts emit resource_overlap flags (this lands
+  Phase 4's deferred B-057 resource conflicts), booking
+  responses echo their own conflicts (published + strict
+  overlap only; back-to-back never flags).
+- B-109 attendance: services/attendance.py — organiser-marked,
+  published events, active members, idempotent. Reads are
+  COUNTS ONLY: event headcount + summary (recent N begun
+  published events, counts + average). The refusal is a test:
+  per-person attendance routes do not exist (404; the
+  ".../attendees" spelling lands on the unmark route's shape
+  and answers 405 — a write's shape, not a read). The mark
+  receipt is the only response naming a person — it echoes
+  the organiser's own act. No person's identity appears in
+  any aggregate payload.
+- B-110 member import/export: services/member_io.py — CSV in
+  as raw body (admin+), email found BY SHAPE (contains "@"),
+  not position, so unquoted "Carter, Cy" survives its comma
+  and stray trailing columns fall away. Report counts created
+  users / memberships / enrolments / already-members; skipped
+  rows (in-file dupes) and error rows (bad email) named by
+  spreadsheet row number. Imported people arrive INVITED
+  (activation stays the invite law's); sub-groups find-or-
+  created by name; the spreadsheet never overwrites a name a
+  person already has. DRY RUN = the identical work, then
+  rollback — no audit row (a dry run happened to nobody).
+  Export CSV (real quoting; comma names round-trip) or JSON,
+  all memberships, name order, sub-groups joined "; ".
+- B-111 settings pack: services/settings_pack.py — one
+  validated schema over the Group dials (review rules,
+  reminder rules in B-096's vocabulary, digest weekday/time/
+  enabled, template_set closed vocabulary {"starter"},
+  ai_daily_budget_micros with null = no cap). Present governs
+  (incl. null), absent leaves alone; one bad dial changes
+  nothing. Audit group.settings_updated with per-field
+  old→new; digest changes re-anchor via digests.ensure_
+  scheduled in the same transaction. Approval wiring:
+  routers/groups.py approve door dropped to member;
+  services/groups.py::approve_candidate enforces — seat check
+  FIRST (seat_cannot_approve unchanged), then review_min_role
+  (forbidden), then, when required > 1, CandidateApproval
+  rows per DISTINCT approver (repeat = 409), candidate stays
+  pending + audited candidate.approval_recorded until the
+  count is met, when the final approver runs the ordinary
+  mint path. CandidateResponse carries approvals_recorded /
+  approvals_required (additive).
+- B-112 gate: tests/test_phase9_gate.py — import roster →
+  flyer in (fixture driver) → event minted → scoped to the
+  crew (enrolled sees it, unenrolled gets 404) → driver shift
+  opened, gap named, claimed, gap closed → attendance marked,
+  count read → digest sent naming the event, delivered to the
+  crew member's mailbox (capture transport). NO ZIP this
+  phase (folds into ZIP-RC at B-138, roadmap's train).
+  Contract regenerated: 151 paths / 179 schemas (was 133/150).
+- Deviations/boundaries: (1) Migration 0012 on the upgrade
+  road adds subgroup_id as a PLAIN column — SQLite cannot add
+  an FK in place; fresh DBs get the FK from 0001 metadata and
+  services validate the reference on both roads. Downgrade
+  drops the scope indexes first and uses batch mode for the
+  two subgroup_id columns (SQLite cannot drop an FK-carrying
+  column in place). (2) The iCal feed and the weekly digest
+  stay GROUP-WIDE in this phase: organiser-published
+  broadcasts; the digest is one stored row per group (B-099).
+  Interactive member-facing surfaces enforce scoping.
+  (3) One Phase 4 assertion superseded (the Phase 8 pattern):
+  test_calendar_views' conflict note now asserts
+  "resource_overlap" — B-108 made the deferred flag real.
+  (4) Approval door change (member + service-enforced pack)
+  is behaviour-preserving at defaults; recorded in CHANGELOG.
+  (5) Attendance "…/attendees" 405 nuance (above).
+  (6) GATE FINDINGS, fixed in cb4ba10: the first gate run
+  failed ONE test — the B-110 dry-run test's own assertion
+  (it forgot its fixture's accepted member when asserting
+  the unchanged roster; the dry run itself was correct).
+  The same run exposed a latent foundation defect: main.py's
+  request-id log filter sat on the root LOGGER, whose
+  filters never run for records propagated from child
+  loggers — third-party records (httpx) hit the handler's
+  formatter without request_id and raised. The filter now
+  rides the HANDLER. Also: a verification run died to the
+  /tmp hazard (tmpfs 100%, pytest-of-root 511M) — gate runs
+  now use --basetemp on the workspace overlay. Final clean
+  run: 704 passed (673 + 31), read from the run's own log.
+
+### Phase 10 — Context pruning and group memory (B-113 → B-122): COMPLETE (2026-10-25)
+- Tables live in models/memory.py (Summary, PruneRun); Group
+  gained prune_max_passes (default 2), prune_token_budget
+  (default 120000), prune_driver (default "hosted").
+  Migration 0013_phase10_memory (guarded, in the 0012 style).
+- The corpus law: memory reads APPROVED history only —
+  sources scoped "group-history" + CURRENT decisions +
+  APPROVED summaries of kind discussion/recap — assembled by
+  services/memory.approved_corpus, positions renumbered in
+  chronological order, chunk ids source:/decision:/summary:.
+- B-113 pruning core (ai/pruning.py): Geoffrey's design — a
+  full LLM judges relevance chunk by chunk; the module says
+  plainly it is NOT embedding RAG (a test asserts the words
+  and the absence of embedding/vector imports). Windows ride
+  extraction.chunk_windows; tier "wonder"; the token budget
+  is checked BEFORE each window call on the rendered
+  prompt's estimate (unjudged chunks stay dropped, outcome
+  flagged budget_stopped). Golden 500-message corpus: 12/12
+  human-marked chunks kept at ≤25% of corpus tokens.
+- B-114 multi-pass: prune_multi = prune_once +
+  reconsider_dropped per extra pass over the dropped set;
+  ceiling MAX_PASSES_CEILING = 3 above the settings caps.
+  B-115's gap pass reuses reconsider against the unverified
+  draft's text.
+- B-115 ask (services/memory.ask_question): prune → draft
+  from survivors only → EVERY citation verified by B-040's
+  quote rule (extraction.find_quote); zero citations is
+  unverifiable by construction. Failure returns the refusal
+  led by "I couldn't verify this" with found material
+  labelled and its citations carrying null chunk ids —
+  never a confident guess (the acceptance test). Run +
+  Summary(kind=ask) committed before the answer.
+- B-116 summaries propose, the queue disposes:
+  summarise_thread stores a draft Summary and lands the
+  decisions/tasks the summary NAMES as Candidates
+  (created_by "system:summary", flag "from_summary",
+  source_id NULL, NO provenance rows — comments are not
+  SourceChunks; the quotes live in the draft fields). It
+  writes NO Decision/Task rows. Hidden/deleted comments
+  never enter a summary (read at the caller's role, then
+  filtered regardless).
+- B-117 briefings weave the structured present (decisions
+  linked to or word-matching the event, latest APPROVED
+  recap, open OpenQuestions, unclaimed RoleSlots) with
+  history pruned on the event's own terms; the run's kept
+  set is the briefing's receipt. Golden: an August landmine
+  about the flooding marquee lands in the November briefing.
+- B-118 recaps read discussion + the attendance COUNT +
+  Flyers with alt_text_status "complete" only (the alt-text
+  law both ways). Approval is the only door from draft to
+  memory; approving a newsletter creates a Source
+  (kind "newsletter", paragraphs as chunks) — the loop
+  closes, and the loop test proves a distinctive phrase
+  from an approved letter survives into a later prune.
+- B-119 LocalDriver (ai/drivers_local.py): OpenAI-compatible
+  chat-completions, text only (media calls raise plain-words
+  ModelError), one model all tiers, cost_micros 0 (own
+  hardware), endpoint token counts when reported. Selected
+  per-group by prune_driver="local" in
+  services/memory.resolve_client; a missing endpoint config
+  is a plain refusal, never a silent fallback. Extraction
+  always uses the process client. Swap test: same corpus,
+  same survivors, both drivers.
+- B-120 transparency: GET /memory/runs (member) lists runs
+  with kept/dropped ids, passes, model, cost; DELETE one or
+  all (organiser) purges the ledger — summaries are never
+  deleted by a purge (their source ranges keep chunk ids
+  naming sources/decisions that still exist).
+- B-121 evaluation (ai/pruning_evaluation.py +
+  pruning_eval_corpus.json): golden questions with
+  human-marked relevants, scored through the real engine
+  against a recorded judge that is DELIBERATELY imperfect
+  (one named miss, recall 0.50; one over-keep, precision
+  0.75). Means: recall 0.88, precision 0.94; floors asserted
+  in tests; the table lives in TEST_REPORT's Phase 10
+  addendum.
+- B-122 gate: the three demos in mock mode (honest outcomes
+  — the mock keeps nothing, so ask returns the refusal) and
+  live mode (LiveDriver over a content-aware stub
+  transport; no real Meta endpoint exists in this
+  environment — the standing boundary, recorded not faked).
+  Contract regenerated: 160 paths / 189 schemas (was
+  151 / 179). Bruno collections unchanged (still the B-010
+  skeleton, as at the Phase 9 gate). No ZIP.
+- Gate findings: (1) two AppError("not_found", status=404)
+  calls in the new service passed a kwarg the error chassis
+  does not take — the registry owns statuses; fixed and
+  covered by the B-120 cross-group purge test. (2) The recap
+  service first read its discussion viewer-less, and the
+  visibility bright line (visible_to with role None) hides
+  EVERY event from a viewer-less read — the recap now reads
+  at the organiser role its door guarantees, then filters
+  hidden/deleted regardless.
+
+### Phase 11 — Samtal bridge and live sources (B-123 → B-130) ✅
+
+- **B-123** Samtal source connector (`services/samtal.py`,
+  `services/livechat.py`, migration 0014): a live source
+  (B-032 permission record) syncs a hall's new messages as
+  chunks through a cursor, byte-identical to the same words
+  pasted. Speakers key on their outside id (`sender_ref`);
+  `ExternalAccountLink` resolves a speaker to a member ONLY
+  when a person made the link (active members only) —
+  unlinked speakers stay named guests (name-collision trap
+  test). Sync refusals are recorded on the source's sync
+  state in plain words. **The connector is built and tested
+  against recorded fixtures and the `FixtureSamtalClient`
+  test double only — the live Samtal is never contacted by
+  this codebase; no real address, token, or key exists
+  anywhere in the repo.**
+- **B-124** Calendar return path (`services/samtal_calendar.py`):
+  published events stand on the hall's calendar (the hall
+  source's id IS its calendar id); a content hash keeps a
+  second sync quiet; Samtal-side edits/cancellations return
+  as B-077 change candidates (`created_by=
+  system:samtal-calendar`, words in a backing source) —
+  Samtal never writes events directly. Foreign hall events
+  (no `ref`) never import.
+- **B-125** Messenger: **access not granted** — the slice is
+  its documented fallback: `services/messenger.py` refuses
+  sync in plain words naming the paste/export road
+  (B-024's mechanics, proven identical), and the refusal is
+  recorded on the sync state. Nothing fakes a live
+  integration.
+- **B-126** Inbound webhooks (`services/webhooks_in.py`):
+  endpoint per source; URL token shown once, kept SHA-256
+  hashed; signing secret DERIVED by HMAC from the server
+  secret (stored nowhere); signature over
+  `"<timestamp>.<body>"`, 300 s window; `WebhookReceipt`
+  gives exactly-once (replay = 409 webhook_replay);
+  refusals audit-logged (group NULL for unknown tokens);
+  the DB-file grep finds neither token nor secret.
+  REPAIR (2026-10-25, post-gate verification): the replay
+  acceptance failed twice in independent full-suite runs —
+  the test's helper re-signed with int(time.time()) per
+  call, so under load a second boundary between the calls
+  made the "replay" a fresh, valid delivery (proven by a
+  recorded-signature recreation). The test now pins one
+  stamp (a true byte-identical replay); a new mirror test
+  pins that a re-signed fresh delivery is NOT a replay.
+  The service gained the concurrent half of the guarantee:
+  an acceptance commit that loses the receipt's UNIQUE
+  race now reads as the same 409 (IntegrityError →
+  rollback → replay refusal), never a 500.
+- **B-127** Integration framework (`services/integrations.py`,
+  `services/sealing.py`): kinds samtal / facebook_events /
+  google_calendar / custom; config sealed whole at rest
+  with a stdlib HMAC envelope (encrypt-then-MAC, fresh
+  nonce, constant-time verify; key from
+  `GPA_INTEGRATION_KEY` or the app secret); API reads show
+  config key NAMES only; health checks record verdicts in
+  plain words — Samtal checks ping the connector (the
+  unavailable refusal IS the verdict), the Phase 12 kinds
+  report `unconfigured` and say their live check arrives
+  with their slice. Acceptance grep: a marker secret appears
+  nowhere in the database file.
+- **B-128** Outbound webhooks (`services/outbound.py`):
+  subscriptions to event.published / event.changed /
+  event.cancelled / candidate.pending; secret shown once,
+  kept sealed; emission is transactional inside the doors
+  where the acts happen (events service, approval mint,
+  candidate doors, extraction); the `webhook_deliver` job
+  signs with the inbound scheme and, on failure, COMMITS
+  the attempt record before raising (the B-102 lesson);
+  deliveries inspectable, `dead` at the job's attempt cap.
+- **B-129** Agent pack (`services/agent_pack.py`,
+  `examples/secretary_seat.py`): the seat's working surface
+  is tagged `agent` in the contract — the tagger walks this
+  FastAPI version's lazy `_IncludedRouter` entries to the
+  route objects the schema builder reads; `SCOPE_GUIDE`
+  documents the ladder once (publish never approves — a
+  person's act). The example runs in mock mode in the
+  suite: reads a hall, drafts its plan line, meets 403
+  `seat_cannot_approve` even holding publish.
+- **B-130** Gate: `tests/test_phase11_gate.py` — hall →
+  sync → extraction → approval → event → back onto the
+  hall's calendar (Club night, Sat 24 Oct 2026 19:00 New
+  York = 23:00 UTC on the double). Contract regenerated:
+  174 paths / 204 schemas (was 160 / 189). No ZIP — folds
+  into ZIP-RC at B-138. No defect was found in earlier
+  phases' code this phase; the two in-phase finds were in
+  the phase's own new code (registration import order for
+  the outbound service; a test-data slip in B-124's test).
+
+### Phase 12 — External publishing integrations (B-131 → B-138) ✅
+The outward doors. **Standing boundary for the whole phase:
+no live third-party action of any kind exists in this
+environment** — no Facebook Page/group account, Google
+account, or mail provider is connected for this project,
+and publishing/sending is Volmarr's word alone. Every
+client boundary below ships the recorded-fixture double +
+the honest unavailable default; live smoke tests are
+recorded NOT RUN in TEST_REPORT, never faked.
+- **B-131** Facebook Event creation (`services/facebook_events.py`):
+  client boundary (Protocol + unavailable default +
+  `FixtureFacebookClient`, page-addressed); POST/GET/DELETE
+  `/groups/{id}/events/{eid}/facebook` beside the B-058
+  draft route. THE PRESS: first press creates the Page
+  copy (link row + payload hash), a press with our side
+  unmoved is a stated no-op, a press after our edit
+  updates, a press on a cancelled event carries the
+  cancellation out; cancelled-without-a-copy stays B-058's
+  409. `facebook_state` reports `differs` from the link
+  hash. Health: the facebook branch of `integrations._run_check`
+  gates on config, then pings through the boundary.
+- **B-132** Google Calendar sync (`services/google_calendar.py`):
+  same boundary shape (calendar-addressed). `google-connect`
+  (admin) records the verdict on the row; `google-sync`
+  (organiser + publish) upserts published, propagates
+  cancellations as cancellations, never travels drafts,
+  hash-quiet on agreement. **One-way OUT, proven by test:**
+  a Google-side edit is never read back — the tampered
+  copy stands for B-137 to notice.
+- **B-133** Real mail provider (`SmtpTransport` in
+  `services/mailer.py`, stdlib smtplib, injectable connect
+  factory; `GPA_MAIL_*` settings): startup refuses a
+  half-configured SMTP deployment in plain words; the
+  B-102 provider webhook demands the HMAC signature
+  (`GPA_MAIL_WEBHOOK_SECRET`) when one is set — an unsigned
+  report records nothing. `DEPLOYMENT.md` (repo root)
+  carries provider setup + SPF/DKIM/DMARC notes and the
+  pre-submission checklist; the "real digest in a real
+  inbox" acceptance is a checklist item there, NOT RUN.
+- **B-134** Messenger notifications
+  (`services/messenger_transport.py`): B-125's access does
+  not exist, so the boundary's real driver is the
+  unavailable one and the slice ships the clean
+  `driver_unavailable`: a row that asked for Messenger
+  records `messenger_status` on the Notification and
+  completes via its other channels. Opt-in = the member's
+  messenger preference switch AND a B-123 Messenger
+  account link; preferences and the quiet-hours hold are
+  the SHARED machinery (the messenger word joined
+  `CHANNELS` + the preference pattern in the phase's
+  foundation, migration 0015).
+- **B-135** Embed + public page (`services/embed.py`):
+  `groups.embed_origins_json` register via GET/PUT
+  `/groups/{id}/embed-origins` (organiser read, admin
+  write; an origin is scheme + host, normalised, paths
+  refused in plain words); `GET /public/groups/{slug}` is
+  the public page payload (B-059 projection);
+  `GET /embed/groups/{slug}` refuses a present-but-
+  unregistered Origin (403); the CORS middleware in
+  `main.py` answers an Origin on public/embed paths ONLY
+  when some group registered it (preflight included) —
+  an unregistered origin gets nothing.
+- **B-136** Health board (`services/health_board.py`):
+  GET `/groups/{id}/integrations/health-board` (organiser+,
+  registered before `/{integration_id}`) returns every
+  integration with its recorded verdict and ONE advice
+  sentence — token refusals name the reconnect + fresh
+  token step; the board reads records and pings nothing.
+- **B-137** Reconciliation (`services/reconcile.py`): the
+  `reconcile` job compares each facebook/google link's
+  outside copy against the owning service's canonical
+  payload projection (envelope fields are not drift) and
+  reports `differs`/`missing` to organisers+ as one
+  `change.drift` notification. **It never writes
+  outward.** The chain is digest-shaped: anchored by
+  create-integration (and the manual POST
+  `/integrations/reconcile`, admin) for the next 02:30
+  group-local, each run queueing its successor. Door
+  coherence: a copy DELETED outside is restored by the
+  organiser's own press/sync; an EDITED copy stands
+  (B-132's law) until a person settles it. Settings are
+  threaded into `reconcile_group` — unsealing with the
+  wrong settings reads every config as empty (found by
+  test; the router passes the app's own settings).
+- **B-138** Gate: `tests/test_phase12_gate.py` — one
+  event's full outward life (draft → press → sync → move →
+  both doors repair → clean reconcile → approved
+  re-announce reaching a member's mailbox with the
+  Messenger leg `driver_unavailable` → cancellation
+  carried out by both doors → registered-origin embed).
+  Contract regenerated: 182 paths / 212 schemas (was
+  174 / 204). **ZIP-RC cut** (releases/, §8 anatomy):
+  Phases 9–12 fold into it, as the train promised.
+  Suite at the gate: **797 passed, 0 failed** (769 + 28
+  new Phase 12 tests, reconciled; totals from the run's
+  own report file).
+  Defects found in earlier code: NONE in Phases 0–11. One
+  latent red INSIDE the phase: the foundation commit's
+  `CHANNELS` growth outran the preference schema pattern
+  (a Phase 8 inbox test failed until B-134's schema half
+  landed — fixed in B-133's commit, noted there). Two
+  in-phase finds, both fixed: reconcile's settings
+  threading (above) and the press/sync missing-copy
+  restore split (edits stand, deletions restore).
+
+## Phase 13 — Security hardening, privacy, and erasure (B-139 → B-146) ✅
+
+The phase that re-attacks everything before it. `THREAT_MODEL.md`
+lives in the repo root now (B-139): assets, actors, Henry's-first-
+version as Case #1, one abuse case per route family mapped to
+its test, accepted risks named — largest: group content is NOT
+field-sealed in this build (B-167, Phase 17). A coherence test
+parses the model so it cannot drift from the code.
+
+- **B-140 fuzz**: two marked groups × 8 attacker principals ×
+  ~400 seeded cases — zero leaks. FINDING (fixed at root):
+  `GET /jobs/{id}` answered ANY signed-in caller; group-named
+  jobs are now members-only (404 otherwise). The fuzz world
+  fixture is module-scoped (`make_settings` +
+  `tmp_path_factory`) — per-test worlds timed out the suite.
+- **B-141**: per-group upload quota (`Group.upload_quota_bytes`,
+  default 100 MiB, `quota_exceeded` 422, settings dial);
+  migration 0016 also carries `source_retention_days`.
+  `SourceResponse.storage_key` REMOVED (D-17) — the phase's one
+  deliberate contract break; four earlier tests superseded to
+  read the key from the row. The .ics door equals the view
+  door; drafts refuse for every role (B-053's bright line).
+  `thumbnail_key` STAYS in flyer projections for now: a named
+  accepted exposure with a binding rule — any future media
+  route authorises by flyer/source id through the view door,
+  never by raw key.
+- **B-142**: prompt render is ONE pass (`ai/promptlib.py`) —
+  values are never rescanned; benign output is byte-identical
+  so fixture recordings (keyed by rendered hash) survive.
+  FINDING (fixed): the digest Jinja env escaped by `.j2`
+  suffix, so PLAIN-TEXT digests carried HTML entities —
+  escaping now follows the file kind via a named callable
+  (jinja's select_autoescape keys on the final extension).
+- **B-143**: `services/erasure.py` — ONE deletion plan
+  (group_id seeds + FK fixpoint) serves export and erasure.
+  Export ZIP: domain JSON + iCal + files; secrets withheld by
+  column rule; integration configs export key NAMES only.
+  Erase door: owner + live person session (keys refused) +
+  exact-name/ERASE double confirmation; commits, then sweeps
+  storage objects no other group references, then VACUUM —
+  the raw DB file greps clean. Audit keeps only the fact.
+  DRILL-FOUND FIX (B-146): the vacuum's output itself rides
+  the WAL, and on newer SQLite the raw main file still shows
+  the pre-vacuum image afterwards — erase now checkpoints
+  AGAIN after VACUUM so the on-disk file is the vacuumed
+  image (the drill's restored tree failed the grep 5/5
+  until this landed; the main tree's older SQLite had been
+  masking it).
+- **B-144**: `GET /users/me/data` (services/me_data.py — no
+  hashes by construction), sources/permissions listing, and
+  retention (`services/retention.py`): `retention_sweep` job
+  chain anchored by the settings pack (03:30 group-local);
+  expiry hard-removes WITHOUT a tombstone, stamps candidates'
+  `source_deleted_at`, spares approved events. Privacy routes
+  register BEFORE sources in main.py — the literal
+  `sources/permissions` segment must not be swallowed by
+  `{source_id}`.
+- **B-145**: prod refuses known-default + <32-char secrets
+  (config.py denylist); access log redacts the segment after
+  feed/invites/email-in/source (`main._redact_path`).
+  FINDING (fixed): httpx/httpcore INFO lines log full URLs —
+  quieted to WARNING in `_configure_logging`. pip-audit over
+  the uv-exported lockfile: **no known vulnerabilities**
+  (verbatim output in TEST_REPORT's Phase 13 addendum).
+- **B-146**: `scripts/backup.py` (SQLite online backup +
+  storage + sha256 manifest + RESTORE.md), `scripts/restore.py`
+  (verify-then-place; damaged bundle restores nothing),
+  `scripts/restore_drill.py` (plant → backup → copy tree →
+  restore → FRESH `uv sync` → full suite → API read-back;
+  drill children run with VIRTUAL_ENV/PYTHONPATH scrubbed —
+  the first drill run failed on the leak). Contract
+  regenerated: 187 paths / 217 schemas (was 182 / 212).
+  Suite at the gate: **835 passed, 0 failed** (797 + 38 new
+  Phase 13 tests, reconciled; totals from the run's own
+  report file). No ZIP this phase — folds into ZIP-Final
+  at B-151.
+
+### Phase 14 — Submission freeze and demo proof (B-147 → B-151): IN PROGRESS
+- **B-147 demo data, final** (`services/demo.py`, `seeds/demo_story.json`,
+  `demo.sh`): the seed is the story — Riverbend Community Trust
+  (nonprofit) + Northside Hiking Club + the B-010 demo group, a cast
+  of 7 people (seed loader grew an idempotent `memberships` section),
+  the club's 40-message trip argument as a chat_paste source, the
+  Trust's 12-section newsletter source, a pinned board announcement,
+  and 8 published history events (Oct–Nov 2026). Idempotent by
+  natural key (group + title); `scripts/seed.py --demo` loads the
+  story; second load creates nothing (pinned by test).
+- **B-148 demo script → tests** (`tests/test_demo_flows.py`): Flow C
+  (golden newsletter → 12 drafts → re-extraction supersedes, never
+  doubles → reviewer date edit + approve → agenda) and Flow D
+  (Saturday-night tonight view, pinned first, tomorrow excluded).
+  Flows A/B already stand as the Phase 5 / Phase 7 gate tests.
+- **B-149 numbers page** (`scripts/make_results.py` → `RESULTS.md`):
+  generated from the three harnesses over their shipped corpora;
+  a test asserts byte-identical regeneration and that the honest
+  imperfections are quoted (place 0.50/0.50, cost recall 0.00,
+  vision overall 0.8125, pruning precision 0.94).
+- Remaining in phase: B-150 (submission pack), B-151 (freeze drill
+  + ZIP-Final).
+
 ### Later phases: NOT STARTED (per roadmap order)
-Phase 9 begins at B-105.
+Phase 15 begins at B-152.
 
 ## Decisions & deviations (from the roadmap defaults)
 
@@ -842,10 +1355,11 @@ Phase 9 begins at B-105.
 - No Docker, anywhere, ever (native installs + uv only).
 - All code is the team's own original work (D-46); third-party
   software enters only as installed, locked dependencies.
-- Licence: **undecided** — "Licence: to be decided by the team — all
-  rights reserved." No file may presume one (no licence field in
-  pyproject, no classifiers). Business/licence decisions rest with
-  Geoffrey & Henry.
+- Licence: **GPLv2** — "Licence: GNU General Public License
+  version 2 (GPLv2)." Ruled by Volmarr on 2026-10-24 ("GPLv2 is
+  the project liscense"), superseding the earlier undecided
+  posture; local statements aligned by Yrsa at the Phase 9
+  checkpoint (README line, pyproject licence field).
 - Commit-before-answer (services commit, then routers respond);
   entered data is sacred (WAL + FULL).
 - Heavy plain-words comments (D-26): header on every file,

@@ -21,6 +21,7 @@ from gpa.models.groups import (
     role_at_least,
 )
 from gpa.models.identity import User
+from gpa.models.nonprofit import CandidateApproval
 from gpa.services import audit
 from gpa.services.identity import create_api_key, get_user_by_email, normalize_email
 
@@ -357,21 +358,61 @@ def create_candidate(
     draft rights; scope enforcement happens at the door in deps)."""
     candidate = Candidate(group_id=group.id, kind=kind, title=title, created_by=actor_label)
     db.add(candidate)
+    db.flush()  # the id exists before the announcement names it
     audit.record(
         db, actor=actor_label, action="candidate.created",
         group_id=group.id, entity_type="candidate", entity_id=candidate.id,
         detail={"kind": kind, "title": title},
     )
+    # A new pending candidate is announced outward in the same
+    # transaction (Phase 11, B-128): candidate.pending.
+    from gpa.services import outbound as outbound_service
+
+    outbound_service.emit(
+        db, group=group, kind="candidate.pending",
+        data={"candidate_id": candidate.id, "kind": kind, "title": title},
+    )
     db.commit()
     return candidate
 
 
+def approvals_recorded(db: Session, candidate_id: str) -> int:
+    """How many distinct approvers have recorded approval of a
+    candidate so far (B-111) — the review queue's progress."""
+    return (
+        db.query(CandidateApproval)
+        .filter(CandidateApproval.candidate_id == candidate_id)
+        .count()
+    )
+
+
+def review_progress(db: Session, candidate: Candidate) -> tuple[int, int]:
+    """(approvals recorded, approvals required) for the wire —
+    required is the candidate's own group's rule (B-111)."""
+    group = db.get(Group, candidate.group_id)
+    required = (group.review_approvals_required or 1) if group else 1
+    return approvals_recorded(db, candidate.id), required
+
+
 def approve_candidate(
-    db: Session, *, actor_label: str, actor_is_seat: bool, group: Group, candidate_id: str
+    db: Session, *, actor_label: str, actor_is_seat: bool, group: Group,
+    candidate_id: str, actor_user_id: str | None = None,
+    actor_role: str | None = None,
 ) -> Candidate:
     """Approve a candidate. THE rule (B-018): a seat can draft but
     can never approve — approval is a person's act, checked here in
-    the service so no route can forget it."""
+    the service so no route can forget it.
+
+    Phase 9 (B-111) adds the group's own review rules, enforced
+    here for the same reason: the settings pack decides the
+    lowest role that may approve (``review_min_role`` — the
+    route's door is membership now, so the rule must live where
+    it cannot be forgotten) and how many DISTINCT approvers a
+    candidate needs (``review_approvals_required``). Below the
+    count, an approval is RECORDED and the candidate stays
+    pending; the approval that meets the count runs the whole
+    ordinary approval — mints and all — in its transaction.
+    """
     if actor_is_seat:
         raise AppError("seat_cannot_approve")
     candidate = db.get(Candidate, candidate_id)
@@ -382,6 +423,61 @@ def approve_candidate(
     # approving it is the normal happy path, not an exception.
     if candidate.status not in ("pending", "edited"):
         raise AppError("conflict", detail="That candidate has already been decided.")
+    if actor_role is not None and not role_at_least(
+        actor_role, group.review_min_role
+    ):
+        raise AppError(
+            "forbidden",
+            detail=(
+                f"Approving in this group needs a {group.review_min_role} "
+                "or above."
+            ),
+        )
+    required = group.review_approvals_required or 1
+    if required > 1:
+        if actor_user_id is None:
+            raise AppError(
+                "forbidden",
+                detail="Recording an approval needs a person.",
+            )
+        already = (
+            db.query(CandidateApproval)
+            .filter(
+                CandidateApproval.candidate_id == candidate.id,
+                CandidateApproval.approver_user_id == actor_user_id,
+            )
+            .one_or_none()
+        )
+        if already is not None:
+            raise AppError(
+                "conflict",
+                detail="You have already recorded your approval of this candidate.",
+            )
+        db.add(
+            CandidateApproval(
+                group_id=group.id, candidate_id=candidate.id,
+                approver_user_id=actor_user_id, approver_label=actor_label,
+            )
+        )
+        db.flush()
+        recorded = approvals_recorded(db, candidate.id)
+        audit.record(
+            db, actor=actor_label, action="candidate.approval_recorded",
+            group_id=group.id, entity_type="candidate",
+            entity_id=candidate.id,
+            detail={
+                "approvals_recorded": recorded,
+                "approvals_required": required,
+            },
+        )
+        if recorded < required:
+            # Recorded, not decided: the candidate stays
+            # pending and nothing mints. The commit lands
+            # before the answer (the commit-before-answer law).
+            db.commit()
+            return candidate
+        # This approval meets the count — fall through and run
+        # the ordinary deciding approval below.
     candidate.status = "approved"
     candidate.approved_by = actor_label
     # Phase 4 (B-049): approval of an event candidate MINTS the
@@ -404,6 +500,14 @@ def approve_candidate(
         from gpa.services import reminders as reminder_service
 
         reminder_service.schedule_reminders(db, group=group, event=minted_event)
+        # And its birth is announced outward in the same
+        # transaction (Phase 11, B-128): event.published.
+        from gpa.services import outbound as outbound_service
+
+        outbound_service.emit(
+            db, group=group, kind="event.published",
+            data=outbound_service.event_data(minted_event),
+        )
     # Phase 7 (B-083/B-085/B-086): approval of a task, decision,
     # or question candidate MINTS its planning entity in the
     # same transaction, the way events mint — the planning

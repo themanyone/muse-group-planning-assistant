@@ -61,8 +61,19 @@ def test_text_upload_creates_asset_source_and_chunks(client, app):
     ]
     # The bytes are really in storage, under their content address,
     # and the source names the asset that describes them.
-    assert body["storage_key"] is not None
-    assert app.state.storage.get_bytes(body["storage_key"]) == data
+    # (Superseded at B-141: the response no longer carries the
+    # storage key — keys are internal locators, D-17 — so the
+    # key is read from the source's own row, as storage's
+    # callers do.)
+    from gpa.models.sources import Source
+
+    session = app.state.db.session()
+    try:
+        row = session.get(Source, body["id"])
+        assert row.storage_key is not None
+        assert app.state.storage.get_bytes(row.storage_key) == data
+    finally:
+        session.close()
     assert body["file_asset_id"] is not None
 
     from gpa.models.core import FileAsset

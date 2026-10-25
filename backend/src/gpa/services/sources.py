@@ -51,7 +51,8 @@ def create_source(
     """Create a source and its chunks, in order, in one transaction.
 
     ``chunks`` items are dicts with ``text`` and optional ``sender``,
-    ``sent_at`` (a datetime or None), ``timestamp_text`` and
+    ``sender_ref`` (the speaker's id in the source system, Phase
+    11), ``sent_at`` (a datetime or None), ``timestamp_text`` and
     ``region_json``. Positions are assigned here, sequentially, so
     callers hand over an ordered list and never number chunks
     themselves. The permission record (granted_by = the caller,
@@ -82,6 +83,7 @@ def create_source(
                 position=position,
                 text=chunk.get("text", ""),
                 sender=chunk.get("sender"),
+                sender_ref=chunk.get("sender_ref"),
                 sent_at=chunk.get("sent_at"),
                 timestamp_text=chunk.get("timestamp_text"),
                 region_json=chunk.get("region_json"),
@@ -94,6 +96,44 @@ def create_source(
     )
     db.commit()
     return source
+
+
+def append_chunks(
+    db: Session, *, source: Source, chunks: list[dict]
+) -> int:
+    """Append chunks to an existing source, in order (Phase 11).
+
+    Live sources (B-123) and webhook-fed sources (B-126) grow
+    after their creation; positions continue from the source's
+    current last position so the one true order (B-023) holds
+    across every arrival. Returns how many chunks were added.
+    Does NOT commit — the caller's flow (a sync, a delivery)
+    owns its transaction and its audit row.
+    """
+    from sqlalchemy import func
+
+    last = (
+        db.query(func.max(SourceChunk.position))
+        .filter(SourceChunk.source_id == source.id)
+        .scalar()
+    )
+    position = (last + 1) if last is not None else 0
+    for chunk in chunks:
+        db.add(
+            SourceChunk(
+                source_id=source.id,
+                position=position,
+                text=chunk.get("text", ""),
+                sender=chunk.get("sender"),
+                sender_ref=chunk.get("sender_ref"),
+                sent_at=chunk.get("sent_at"),
+                timestamp_text=chunk.get("timestamp_text"),
+                region_json=chunk.get("region_json"),
+            )
+        )
+        position += 1
+    db.flush()
+    return len(chunks)
 
 
 def get_source(db: Session, group: Group, source_id: str) -> Source:

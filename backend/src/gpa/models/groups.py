@@ -70,6 +70,36 @@ class Group(Base):
     # Which template set the group's shelf draws from (B-111) —
     # a closed vocabulary owned by services/settings_pack.py.
     template_set: Mapped[str] = mapped_column(String(32), default="starter")
+    # Phase 10 memory settings (B-114/B-119), validated by the
+    # settings pack like the dials above: how many pruning
+    # passes the engine may spend on one question (hard cap 3,
+    # enforced in the pack AND the engine), the per-run token
+    # budget it must stop inside, and which engine judges —
+    # "hosted" (the process's configured driver) or "local"
+    # (the group's own OpenAI-compatible endpoint, B-119).
+    prune_max_passes: Mapped[int] = mapped_column(Integer, default=2)
+    prune_token_budget: Mapped[int] = mapped_column(Integer, default=120_000)
+    prune_driver: Mapped[str] = mapped_column(String(16), default="hosted")
+    # Phase 12 embed origins (B-135): the web origins allowed
+    # to embed this group's public page/widget, as a JSON list
+    # of origin strings ("https://village.example"). Empty =
+    # no embeds anywhere: CORS answers for the public surfaces
+    # name only origins on this list, and the embed endpoint
+    # refuses any other origin outright.
+    embed_origins_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Phase 13 privacy + storage dials (B-141/B-144), validated
+    # by the settings pack like the dials above. The upload
+    # quota caps the group's TOTAL stored upload bytes
+    # (FileAsset sizes); NULL means no group quota. Retention:
+    # raw sources older than this many days auto-expire (the
+    # approved events they produced stand); NULL means sources
+    # are kept forever — retention is opt-in, never a surprise.
+    upload_quota_bytes: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=104_857_600
+    )
+    source_retention_days: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
 

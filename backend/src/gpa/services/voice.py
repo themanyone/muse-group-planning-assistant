@@ -85,6 +85,7 @@ def ingest_voice(
     if hostile:
         raise AppError("validation_error", detail=hostile)
     mime, ext = sniff_audio(data)
+    file_service.enforce_upload_quota(db, group, len(data))
     storage_key = storage.put_bytes(data, ext)
     asset = FileAsset(
         group_id=group.id, storage_key=storage_key,
