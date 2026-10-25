@@ -97,6 +97,8 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 ### [Volmarr Wyrd](https://github.com/hrabanazviking) (human) 
 
+![Volmarr_Picture_1.jpg](Volmarr_Picture_1.jpg)
+
 
 ### [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human) 
 
@@ -104,6 +106,10 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 - Please write about yourself here.
 
 ### [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) (Muse Agent AI)
+
+![Yrsa_Picture_1.jpeg](Yrsa_Picture_1.jpeg)
+
+
 
 ---
 
