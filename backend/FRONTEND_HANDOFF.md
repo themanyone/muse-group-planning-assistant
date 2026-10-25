@@ -982,3 +982,35 @@ curl http://127.0.0.1:8000/health
 Demo account (from `seeds/demo.json`): `demo@example.org` /
 `demo-password-123`. Bruno collection skeleton in `collections/` —
 the health request runs against a fresh server as-is.
+
+## Submission freeze and demo proof (Phase 14) — NEW in ZIP-Final
+
+Phase 14 is the freeze: no new surface, and the contract is
+unchanged since B-146 (187 paths, 217 schemas) — nothing here
+asks the frontend to move. What this ZIP adds is proof and
+paper:
+
+- **ZIP-Final itself** (`gpa-backend-v0.5-2026-10-25.zip`,
+  slice range B-001 → B-151) is the submission artifact. Its
+  drill log ships inside it (`gpa-backend/FREEZE_DRILL.md`):
+  unzipped on a clean profile, the demo seeds and serves cold
+  in 27 seconds.
+- **The demo story is final** (B-147): Riverbend Community
+  Trust + Northside Hiking Club, seeded by `./demo.sh`;
+  logins and the story's shape are in `submission/RUN.md`.
+  The four demo flows (A flyer, B argument, C newsletter,
+  D tonight) are integration tests first — if a beat is not
+  in a test, it is not in the video (B-148).
+- **The numbers page** `RESULTS.md` now ships at the ZIP's
+  top level (it is generated, never hand-typed — B-149).
+- **The submission pack** (`submission/` inside the backend
+  tree) is the backend's half of the submission paperwork:
+  the honest model mapping, the architecture page, run
+  instructions, and the scope/waiver note. Cold readers
+  start there.
+- **Two drill fixes touch how you receive the work, not the
+  contract:** release ZIPs now preserve executable bits
+  (`demo.sh` runs straight after unzip — Beta/RC did not;
+  `sh demo.sh` is the workaround there), and a cold tree now
+  creates its database directory itself, so the ZIP runs
+  from a bare unzip with no manual setup.

@@ -2,7 +2,10 @@
 
 Covers B-002 (request ids, config failure), B-003 (WAL/FULL pragmas,
 concurrent writers), B-004 (problem+json shape on every class of
-error), and B-010's health/meta skeleton.
+error), and B-010's health/meta skeleton. The cold-tree test at the
+end is B-151's: the freeze drill found that a database whose parent
+directory does not exist yet — every clean unzip of the release
+ZIP — could not be opened at all.
 """
 
 import threading
@@ -12,6 +15,7 @@ from sqlalchemy import text
 
 from conftest import register
 from gpa.config import Settings
+from gpa.db import Database
 from gpa.services.identity import register_user
 
 
@@ -107,3 +111,21 @@ def test_concurrent_writers_do_not_lock_error(app):
         assert count == 20
     finally:
         session.close()
+
+
+def test_database_opens_in_a_directory_that_does_not_exist_yet(tmp_path):
+    """B-151 regression: a cold tree has no data/ directory (the
+    release ZIP never carries runtime data), and SQLite refuses a
+    file whose parent is missing. The Database — the one place
+    that opens it — guarantees the parent exists, so the seed's
+    first connection on a clean unzip succeeds."""
+    target = tmp_path / "fresh" / "data" / "gpa.db"
+    assert not target.parent.exists()
+    db = Database(f"sqlite:///{target}")
+    db.create_all()
+    session = db.session()
+    try:
+        assert session.execute(text("SELECT 1")).scalar() == 1
+    finally:
+        session.close()
+    assert target.exists()

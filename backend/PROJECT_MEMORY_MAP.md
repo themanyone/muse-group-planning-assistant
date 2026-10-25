@@ -23,15 +23,18 @@ uv run alembic upgrade head   # migration path (GPA_DATABASE_URL)
 ```
 
 Verified 2026-10-24: fresh `uv sync` → `./run.sh` → `/health` ok;
-Alembic up/down/up clean; **841 tests, all passing** (149/350 slices:
-Phases 0–13 complete + Phase 14 B-147→B-149) — the count taken from
-one clean full run against the B-149 tree 2026-10-25 (835 at the
-Phase 13 gate + 6 new Phase 14 tests = 841, reconciled from the
-run's own log; the run was slow under shared VM load, ~45 min).
-ZIP-Beta cut at the Phase 8 gate
+Alembic up/down/up clean; **853 tests, all passing** (151/350 slices:
+Phases 0–14 complete) — the count taken from one clean full run
+against the B-151 tree 2026-10-25 (841 at the B-149 checkpoint +
+8 B-150 + 3 B-151 guard + 1 B-151 regression = 853, reconciled
+from the run's own log). ZIP-Beta cut at the Phase 8 gate
 (releases/gpa-backend-v0.3-2026-10-24.zip, §8 anatomy); ZIP-RC cut
 at the Phase 12 gate (releases/gpa-backend-v0.4-2026-10-25.zip,
-§8 anatomy) — Phases 9–12 fold into it.
+§8 anatomy) — Phases 9–12 fold into it; **ZIP-Final cut at the
+Phase 14 gate** (releases/gpa-backend-v0.5-2026-10-25.zip, §8
+anatomy + RESULTS.md top-level + the drill log inside) — Phases
+13–14 fold into it, and its freeze drill ran the demo cold from
+a clean unzip (27 s; FREEZE_DRILL.md).
 Demo verified offline on the mock driver (seed + health + demo
 login, no API key, no network).
 
@@ -1271,7 +1274,7 @@ parses the model so it cannot drift from the code.
   report file). No ZIP this phase — folds into ZIP-Final
   at B-151.
 
-### Phase 14 — Submission freeze and demo proof (B-147 → B-151): IN PROGRESS
+### Phase 14 — Submission freeze and demo proof (B-147 → B-151): ✅ COMPLETE (2026-10-25)
 - **B-147 demo data, final** (`services/demo.py`, `seeds/demo_story.json`,
   `demo.sh`): the seed is the story — Riverbend Community Trust
   (nonprofit) + Northside Hiking Club + the B-010 demo group, a cast
@@ -1291,8 +1294,57 @@ parses the model so it cannot drift from the code.
   a test asserts byte-identical regeneration and that the honest
   imperfections are quoted (place 0.50/0.50, cost recall 0.00,
   vision overall 0.8125, pruning precision 0.94).
-- Remaining in phase: B-150 (submission pack), B-151 (freeze drill
-  + ZIP-Final).
+- **B-150 submission pack** (`submission/` — README cover,
+  MODEL_MAPPING, ARCHITECTURE, RUN, WAIVER_AND_SCOPE): the
+  backend's half of the submission. The model page leads with
+  its honesty (no real Meta endpoint exists in this
+  environment; the live driver is stub-transport tested only;
+  every shipped number ran on fixture/mock). The architecture
+  page is one Mermaid diagram + a walking tour derived from
+  THIS map. The waiver states the scope in quotable words:
+  only the jointly built work is submitted; Samtal, Mythic
+  Engineering, and Project Aesir are pre-existing and NOT
+  submitted — the sole carve-out is the Phase 11 Samtal
+  integration surface as it exists in this repo. Licence in
+  its ruled words (GPLv2, decided — the roadmap text's
+  superseded licence notice was NOT used). The honesty notes
+  ride inside: Bruno = B-010 skeleton, B-131 live smoke NOT
+  RUN, B-133 real-inbox = DEPLOYMENT.md checklist item.
+  `tests/test_submission_pack.py` (8 tests) parses the pack
+  B-139-style so its claims cannot drift.
+- **B-151 freeze drill + ZIP-Final**: `scripts/make_release_zip.py`
+  now ships RESULTS.md top-level (§8 anatomy since B-149) and
+  carries each file's Unix mode. **ZIP-Final built**:
+  releases/gpa-backend-v0.5-2026-10-25.zip (§8 anatomy; the
+  drill log ships inside at `gpa-backend/FREEZE_DRILL.md`).
+  The drill ran FOUR times against script-built candidates
+  and caught two real defects, both fixed at the root:
+  (1) **ZIP permissions** — writestr wrote every entry 0644,
+  so `demo.sh`/`run.sh`/`test.sh` landed non-executable after
+  unzip; ZIP-Beta + ZIP-RC share the flaw (Final supersedes
+  them; workaround there is `sh demo.sh`). `_zip_info` carries
+  mode + mtime in both build shapes; `tests/test_release_zip.py`
+  (3 tests) pins it. (2) **Cold-tree database** — a clean
+  unzip has no `data/`, SQLite refuses a file whose parent is
+  missing, and the seed meets the DB before storage/outbox
+  creation can make the dir as a side effect (the server was
+  always silently rescued by that side effect):
+  `Database._ensure_sqlite_parent_dir` (src/gpa/db.py) +
+  a foundation regression test. Run 3 failed only in the
+  drill script itself (read back through a route that does
+  not exist; corrected to `/users/me/data`). **Run 4 green
+  end to end**: unzip 0 s, fresh `uv sync` 2 s, seed 20 s
+  (7 users / 3 groups / 2 sources / 8 events / 1 announcement),
+  boot + /health 4 s, login as Mara, story read back — 27 s
+  cold. The drilled candidate (from `d951f81`) and the
+  shipped ZIP differ only in the gate papers + the drill log.
+  Process find, recorded in TEST_REPORT: the permission
+  guard's first commit landed red (a 1970-timestamp test
+  defect, masked by a `tail` pipeline's exit code); fixed in
+  the next commit and all gate numbers re-run from the
+  corrected tree. Suite at the gate: **853 passed, 0 failed**
+  (841 + 12 new, reconciled). Contract unchanged: 187 paths /
+  217 schemas.
 
 ### Later phases: NOT STARTED (per roadmap order)
 Phase 15 begins at B-152.

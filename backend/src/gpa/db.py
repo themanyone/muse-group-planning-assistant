@@ -14,8 +14,10 @@ codebase returns a response from inside the transaction that was
 supposed to make its result visible.
 """
 
+from pathlib import Path
+
 from fastapi import Request
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -34,6 +36,8 @@ class Database:
 
     def __init__(self, url: str) -> None:
         self.url = url
+        if url.startswith("sqlite"):
+            self._ensure_sqlite_parent_dir(url)
         # check_same_thread=False: FastAPI + the job worker use the
         # engine from several threads; SQLAlchemy's pool keeps each
         # connection safe, SQLite serialises writers via the WAL.
@@ -46,6 +50,25 @@ class Database:
         self.session_factory = sessionmaker(
             bind=self.engine, autoflush=False, expire_on_commit=False
         )
+
+    @staticmethod
+    def _ensure_sqlite_parent_dir(url: str) -> None:
+        """Create the database file's parent directory if missing.
+
+        A cold tree — the release ZIP unzipped on a clean profile —
+        has no ``data/`` directory (the ZIP never carries runtime
+        data), and SQLite refuses to open a file whose parent does
+        not exist: "unable to open database file". The seed script
+        meets the database before storage/outbox creation can make
+        the directory as a side effect, so the cold demo died at
+        its first step until this landed (found by the B-151
+        freeze drill, run 2, 2026-10-25). The one place that knows
+        how to open the database is the place that guarantees its
+        home exists. In-memory databases have no home to make.
+        """
+        database = make_url(url).database
+        if database and database != ":memory:":
+            Path(database).parent.mkdir(parents=True, exist_ok=True)
 
     def _install_sqlite_pragmas(self) -> None:
         """Apply the durability pragmas to every new connection."""

@@ -564,3 +564,117 @@ restored tree, and reads the marker back through the API.
   keeps its tombstone + restore, unchanged.
 - No ZIP this phase, per the train: Phase 13 folds into
   ZIP-Final at B-151.
+
+# Addendum — Phase 14 (B-151 gate, 2026-10-25; ZIP-Final)
+
+Phase 14 froze the build and proved the demo: the demo data
+became the story (B-147), the demo script became tests (B-148),
+the numbers page became generated (B-149), the submission pack
+was written (B-150), and the freeze drill unzipped ZIP-Final
+on a clean profile and ran the demo cold (B-151). B-147 →
+B-149 were built by the forge timer; B-150 and B-151 by this
+phase's builder. The numbers below are from the builder's own
+gate run, against the final code tree (commit `d951f81`).
+
+## The four demo flows (read these first)
+
+B-148's acceptance: every click in the submission video script
+is first an integration test. These are the four.
+
+| Flow | The story | The test | Driver |
+|---|---|---|---|
+| A — the flyer | A photographed poster is read, the draft waits in the review queue with region provenance, a person approves, the event publishes with the flyer attached and lands on the agenda | `tests/test_phase5_gate.py` (Phase 5 gate) | fixture |
+| B — the argument | The hiking club's 40-message trip argument is pasted in and extracted into 1 event + 3 tasks + 2 decisions + 2 questions; the reviewer corrects the place and confirms the volunteered kayak owner by naming the member (the AI never assigns an owner); approval mints them all; the conversation continues in the minted event's thread | `tests/test_phase7_gate.py` (Phase 7 gate) | fixture |
+| C — the newsletter | The Trust's 12-section newsletter becomes exactly 12 drafts; re-extraction supersedes, never doubles; a reviewer edits a date, approves, and the event lands on the agenda | `tests/test_demo_flows.py` (B-148) | fixture |
+| D — Saturday night | The tonight view: the pinned event first, this evening's events in order, tomorrow's excluded | `tests/test_demo_flows.py` (B-148) | fixture |
+
+## Suite
+
+- **853 passed, 0 failed, 0 errors** at the Phase 14 gate,
+  from the builder's own full run against the final code
+  tree: the log's tail reads "853 passed, 1 warning in
+  2516.95s" (the one warning is the Starlette TestClient
+  deprecation notice). Reconciliation: 841 at the B-149
+  checkpoint (Yrsa's verified run) + 8 (B-150 pack coherence)
+  + 3 (B-151 release-ZIP guard) + 1 (B-151 cold-tree
+  regression) = 853, collected = passed.
+- Contract: **unchanged** — 187 OpenAPI paths, 217 schemas.
+  Phase 14 added documents, one release-script behaviour,
+  and one chassis guarantee; no route moved.
+- Two earlier gate attempts were stood down rather than
+  trusted, and are claimed for nothing: the first when the
+  tree moved under it (the drill's fixes were landing), the
+  second when the B-151 drill found the database defect in
+  `db.py` mid-run. The totals above are the third run,
+  launched against `d951f81` and read from its own log.
+- State: **Phase 14 complete — 151 of 350 slices.**
+
+## Phase 14's new tests (12)
+
+| File | Tests | Covers |
+|---|---|---|
+| test_submission_pack.py | 8 | The submission pack cannot drift: documents exist; the decided licence is stated in its ruled words on the cover and the waiver; the superseded licence posture appears nowhere in the pack; the waiver names Samtal, Mythic Engineering, and Project Aesir and the one Phase 11 carve-out; the model mapping carries its never-ran-live statement and quotes the shipped tier defaults from `.env.example`; the architecture page carries its diagram and tour; the cover and run pages point at evidence files that exist |
+| test_release_zip.py | 3 | The release script carries Unix modes into the archive (executable and plain mappings), and the tree's entry-point scripts are executable at the source |
+| test_foundation.py | +1 | A `Database` opens on a path whose parent directory does not exist yet — the cold-tree regression (below) |
+
+B-147 → B-149's six tests (demo data, Flows C/D, the numbers
+page's byte-identical regeneration) were counted at the
+B-149 checkpoint and are part of the 841 above.
+
+## The freeze drill (B-151) — four runs, two real defects
+
+The full log ships inside ZIP-Final at
+`gpa-backend/FREEZE_DRILL.md`. In brief: **run 1** failed at
+`./demo.sh` — Permission denied: the release script wrote
+every ZIP entry at 0644, so the entry-point scripts landed
+non-executable (a packaging defect shared by ZIP-Beta and
+ZIP-RC; fixed in the script, `53ad1c5`). **Run 2** failed at
+the seed — "unable to open database file": a cold tree has
+no `data/`, and the `Database` chassis never created the DB
+file's parent directory (the server had always been rescued
+by storage/outbox creation making it as a side effect; fixed
+in `db.py`, `d951f81`). **Run 3** failed in the drill script
+itself, which read back through a route that does not exist
+(corrected to `/users/me/data`; no artifact change). **Run 4
+was green end to end**: unzip 0 s, fresh `uv sync` 2 s, seed
+20 s (7 users, 3 groups, 2 sources, 8 events, 1
+announcement), boot + health 4 s, login as the demo owner,
+and the story read back — 27 seconds cold, total.
+
+The drilled candidate (sha256 `609d0484…`, built from
+`d951f81`) and the shipped ZIP differ only in documentation:
+the shipped ZIP was rebuilt by the same script at the gate-
+papers commit so this report and the drill log could be
+inside it. No code, test, or contract file differs.
+
+One process find, recorded plainly: the permission guard's
+first commit (`53ad1c5`) landed while its own test was red —
+the test used a 1970 timestamp the ZIP format refuses, and
+the committing chain read pytest's exit code through a
+`tail` pipeline, masking the failure. The test was defective,
+not the fix; it was corrected in `05ec22b` and every gate
+number in this addendum comes from runs launched after that
+correction.
+
+## The honest boundaries
+
+- **ZIP-Beta (v0.3) and ZIP-RC (v0.4) carry the permission
+  defect** run 1 found: their `demo.sh` / `run.sh` /
+  `test.sh` land non-executable after unzip (workaround:
+  `sh demo.sh`, or `chmod +x`). ZIP-Final supersedes both.
+- The standing Phase 11–13 boundaries stand unchanged: no
+  live third-party action has ever been taken by this
+  codebase; B-131's Facebook live smoke test is NOT RUN;
+  B-133's real-inbox check is a pre-submission checklist
+  item in DEPLOYMENT.md; Messenger ships the B-125 fallback;
+  the live AI driver has never run against a real endpoint;
+  the Bruno collections remain the B-010 skeleton; group
+  content is not field-sealed (B-167) and the audit log is
+  not yet a hash chain (B-170).
+- The submission pack discloses the same boundaries in its
+  own words (`submission/WAIVER_AND_SCOPE.md`): only the
+  jointly built work is submitted; Samtal, Mythic
+  Engineering, and Project Aesir are pre-existing and are not
+  part of the submission, the sole carve-out being the
+  Phase 11 Samtal integration surface as it exists in this
+  repository.

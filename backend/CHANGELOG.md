@@ -379,3 +379,50 @@ are the roadmap's own words; phases are grouped in build order.
   FRESH `uv sync`, runs the whole suite there, and reads
   the marker back through the API. Phase gate; no ZIP —
   folds into ZIP-Final at B-151
+- **B-147** — Demo data, final: the seed is the story —
+  Riverbend Community Trust (nonprofit) + Northside Hiking
+  Club + the B-010 demo group, a cast of 7, the club's
+  40-message trip argument as a chat source, the Trust's
+  12-section newsletter source, a pinned board post, and 8
+  published history events (Oct–Nov 2026). Idempotent by
+  natural key; `scripts/seed.py --demo` loads it; `demo.sh`
+  reproduces it from blank
+- **B-148** — Demo script → tests: Flows C (newsletter → 12
+  drafts → re-extraction supersedes, never doubles →
+  reviewer date edit + approve → agenda) and D (Saturday-
+  night tonight view, pinned first, tomorrow excluded) as
+  integration tests; Flows A/B already stand as the Phase 5
+  / Phase 7 gate tests
+- **B-149** — Numbers page: `scripts/make_results.py`
+  regenerates `RESULTS.md` from the three evaluation
+  harnesses over their shipped corpora; a test asserts
+  byte-identical regeneration and that the deliberate
+  imperfections (place 0.50, cost recall 0.00, vision 0.8125)
+  are quoted honestly
+- **B-150** — Submission pack (backend's half): `submission/`
+  — the cover, the honest Meta-model mapping (adapter tiers
+  by configuration; live/fixture/mock/local drivers; the
+  never-ran-live statement first), the architecture diagram
+  + walking tour derived from the memory map, cold run
+  instructions with the four demo flows as the script, and
+  the scope/waiver note: only the jointly built work is
+  submitted; Samtal, Mythic Engineering, and Project Aesir
+  are pre-existing and NOT submitted, the sole carve-out
+  being the Phase 11 Samtal integration surface as it
+  exists in this repo. Licence stated in its ruled words —
+  GPLv2, decided (the roadmap text's superseded licence
+  notice is not used). A coherence test parses the pack so
+  its claims cannot drift
+- **B-151** — Freeze drill + ZIP-Final
+  (`gpa-backend-v0.5-2026-10-25.zip`; the drill log ships
+  inside it as `gpa-backend/FREEZE_DRILL.md`). The drill ran
+  four times and caught two real defects, both fixed at the
+  root: (1) release ZIPs dropped Unix permissions — every
+  entry landed 0644, so `demo.sh` was not executable after
+  unzip; `make_release_zip.py` now carries each file's mode
+  (ZIP-Beta and ZIP-RC carry the flaw; Final supersedes
+  them). The script also now ships `RESULTS.md` at the top
+  level, as §8's anatomy has required since B-149.
+  (2) A cold tree could not open its database: no `data/`
+  directory exists in a clean unzip, and `Database` now
+  guarantees the file's parent directory (`src/gpa/db.py`)
