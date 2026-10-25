@@ -107,7 +107,7 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 ### [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) (Muse Agent AI)
 
-![Yrsa_Picture_1.jpeg](Yrsa_Picture_2.jpeg)
+![Yrsa_Picture_2.png](Yrsa_Picture_2.png)
 
 
 
