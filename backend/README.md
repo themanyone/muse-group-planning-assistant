@@ -612,7 +612,7 @@ actually have?" and get an answer that is true.*
 
 ---
 
-Muse Group Planning Assistant Backend by [Volmarr Wyrd](https://github.com/hrabanazviking) and his Muse Agent [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir).
+Muse Group Planning Assistant Backend by [Volmarr Wyrd](https://github.com/hrabanazviking) and his Muse Agent [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) Viking Seiðr Witch.
 
 ---
 
