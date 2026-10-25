@@ -13,6 +13,11 @@ outward surface in this project:
   B-137, is the thing that NOTICES and tells the organisers
   — it never quietly fixes it either). The handoff states
   this scope in so many words so nobody promises two-way.
+  **Phase 16 (B-159) revisited the inbound half** — not the
+  law: services/google_inbound.py now PULLS those edits in
+  as B-077 change candidates, where they wait for a human.
+  Nothing reads an edit back INTO an event, here or there;
+  the queue remains the only door, in both directions.
 - **Connect is the credential act.** A group's
   ``google_calendar`` integration carries, sealed, the
   calendar id and the access token a deployment's OAuth

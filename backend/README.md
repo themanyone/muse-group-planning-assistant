@@ -10,11 +10,11 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–15 complete · Phase 16 (scale and second integrations) next |
+| 📍 Where we are | Phases 0–16 complete · Phase 17 (modularity, internal encrypted API, resilience, and craft) next |
 |---|---|
-| 🧩 Roadmap | **156 of 350 slices** built — B-001 → B-156 of a 29-phase roadmap |
-| ✅ Tests | **877 passing** on SQLite (865 on PostgreSQL), counted from clean runs against the committed tree |
-| 📜 API contract | **187 paths · 217 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
+| 🧩 Roadmap | **160 of 350 slices** built — B-001 → B-160 of a 29-phase roadmap |
+| ✅ Tests | **904 passing** on SQLite (888 on PostgreSQL), counted from clean runs against the committed tree |
+| 📜 API contract | **188 paths · 218 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) and PostgreSQL, both proven by the same suite |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
@@ -84,7 +84,7 @@ sentence.
 
 ## ✨ What it can do today
 
-Everything below is built, tested, and committed (Phases 0–15).
+Everything below is built, tested, and committed (Phases 0–16).
 
 ### 📥 Feed it anything
 
@@ -425,8 +425,8 @@ section comes straight out of it.
 
 ## 📜 The API at a glance
 
-The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **187 paths, 217
-schemas** at the Phase 13 freeze — with generated TypeScript types in
+The frozen contract is [`OPENAPI.json`](OPENAPI.json) — **188 paths, 218
+schemas** at the Phase 16 gate — with generated TypeScript types in
 [`frontend_types.ts`](frontend_types.ts) and a ready-to-fire Bruno
 collection in [`collections/`](collections/). The frontend crew builds
 against these files, never against our intentions.
@@ -530,7 +530,7 @@ code provably the team's own work).
 | 13 | Security hardening, privacy, and erasure | B-139 → B-146 | ✅ |
 | 14 | Submission freeze and demo proof | B-147 → B-151 | ✅ |
 | 15 | Deployment and operations | B-152 → B-156 | ✅ |
-| 16 | Scale and second integrations | B-157 → B-160 | ⬜ |
+| 16 | Scale and second integrations | B-157 → B-160 | ✅ |
 | 17 | Modularity, internal encrypted API, resilience, and craft | B-161 → B-180 | ⬜ |
 | 18 | Documentation, diagrams, and the per-file code atlas | B-181 → B-200 | ⬜ |
 | 19 | Equal principals, total API parity, and the advanced MCP server | B-201 → B-220 | ⬜ |
@@ -576,8 +576,8 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **This README describes the committed tree (Phases 0–15).** Phase 16
-  is next in the forge; everything past B-156 in the roadmap table above
+- **This README describes the committed tree (Phases 0–16).** Phase 17
+  is next in the forge; everything past B-160 in the roadmap table above
   is a plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.

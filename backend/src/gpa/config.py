@@ -80,6 +80,21 @@ class Settings(BaseSettings):
     job_max_attempts: int = 5
     job_backoff_base_seconds: int = 5
 
+    # Job queue backend (B-157, decision D-09): "database" is the
+    # chassis itself — the job table + claim-by-update worker this
+    # project was built on, safe across any number of worker
+    # processes. "arq" submits through the external-queue adapter
+    # (services/jobqueue.py) to a Redis the deployment runs, for
+    # deployments that outgrow one box; it needs the `queue`
+    # install extra and ``redis_url`` below.
+    job_queue: str = "database"
+
+    # Redis address for the arq backend (B-157), e.g.
+    # "redis://127.0.0.1:6379/0". Environment-only like every
+    # address-with-possible-credentials here; empty on the
+    # database backend, where it is never read.
+    redis_url: str = ""
+
     # Link ingest (B-029): how long a page fetch may take, and the
     # largest page body the archive will keep. The SSRF guards
     # themselves live in services/linkfetch.py and are not knobs —

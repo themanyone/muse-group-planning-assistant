@@ -476,3 +476,32 @@ are the roadmap's own words; phases are grouped in build order.
   shebangs — staged venvs build `--no-editable`
   (`deploy/install.sh` too) and the serving venv is rebuilt
   at its final address.
+
+### Phase 16 — Scale and second integrations — B-157 → B-160
+- **B-157** — Multi-instance jobs: `claim_next` scans due
+  candidates and treats a lost race or a claim collision as
+  a clean outcome (exactly-once under N workers, proven by
+  a four-thread race suite). The D-09 queue interface gains
+  an arq/Redis adapter (`GPA_JOB_QUEUE=arq`, optional
+  `queue` extra, `gpa-arq-worker` entry) dispatching into
+  the same handler registry; its live leg ran end to end
+  against a real Redis and fixed two defects (create_worker
+  import, function-name registration).
+- **B-158** — Second-wave sources: Discord and Slack live
+  sources through the B-126/B-127 framework as new drivers
+  (framework unchanged), each gated by its B-032 permission
+  record; fixture-proven, live legs recorded NOT RUN.
+- **B-159** — Two-way Google (revisited): inbound Google
+  edits are pulled as change candidates
+  (`POST …/integrations/{id}/google-pull`) and wait for a
+  human — two-way sync that never bypasses the review
+  queue. Contract 188 paths / 218 schemas (one additive
+  route + one additive schema).
+- **B-160** — Public API + developer pack: `DEVELOPER.md`,
+  a generated standard-library Python SDK (one method per
+  operation, byte-identical regeneration enforced), the
+  `gpa-types` TypeScript package (npm-pack-proven;
+  registry publish is the owner's step), and a 16-line
+  example that lists a group's public events — proven
+  against a real booted server. Pack testing also pinned
+  the key-auth header: keys use `X-API-Key`, not Bearer.

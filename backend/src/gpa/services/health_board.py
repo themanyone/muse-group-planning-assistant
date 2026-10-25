@@ -40,6 +40,14 @@ _CONNECT_ADVICE = {
         "Messenger access has not been granted to this project; the "
         "paste/export road is the way until it is."
     ),
+    "discord": (
+        "Connect the group's Discord bot: add bot_token to this "
+        "integration's config, then run a health check."
+    ),
+    "slack": (
+        "Connect the group's Slack app: add bot_token to this "
+        "integration's config, then run a health check."
+    ),
 }
 
 # Words that mark a refusal of the credential itself, as

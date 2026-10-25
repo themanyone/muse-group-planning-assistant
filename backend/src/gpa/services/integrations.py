@@ -254,6 +254,33 @@ def _run_check(db: Session, settings: Settings, row: Integration) -> tuple[str, 
             return "error", str(err)
         except Exception as err:  # A broken client is a health fact too.
             return "error", f"The Google connection failed its check: {err}"
+    if row.kind in ("discord", "slack"):
+        # B-158: the chat platforms check like Phase 12's kinds
+        # — config gate first (the bot/app token a person's
+        # grant produced), then the boundary's ping, whose
+        # refusal in this environment IS the honest verdict.
+        from gpa.services import discord as discord_service
+        from gpa.services import slack as slack_service
+
+        boundary = {
+            "discord": (discord_service, discord_service.DiscordUnavailable, "Discord"),
+            "slack": (slack_service, slack_service.SlackUnavailable, "Slack"),
+        }[row.kind]
+        module, unavailable, label = boundary
+        config = read_config(settings, row)
+        if not config.get("bot_token"):
+            return (
+                "unconfigured",
+                f"Not connected yet — add bot_token to this "
+                f"integration's config, then check again.",
+            )
+        try:
+            module.get_client().ping()
+            return "ok", ""
+        except unavailable as err:
+            return "error", str(err)
+        except Exception as err:  # A broken client is a health fact too.
+            return "error", f"The {label} connection failed its check: {err}"
     # custom
     try:
         sealing.open_sealed(settings, row.config_sealed) if row.config_sealed else ""

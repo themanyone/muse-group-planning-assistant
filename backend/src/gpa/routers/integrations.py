@@ -26,6 +26,7 @@ from gpa.schemas.integrations import (
     AccountLinkResponse,
     EmbedOriginsRequest,
     EmbedOriginsResponse,
+    GooglePullResponse,
     GoogleSyncResponse,
     HealthBoardEntryResponse,
     ReconcileResponse,
@@ -540,8 +541,9 @@ def sync_google(
 ):
     """Run one Google Calendar sync (organiser+): published
     events upsert into the chosen calendar, cancellations
-    propagate as cancellations. ONE-WAY OUT — edits made on
-    Google are never read back into events here."""
+    propagate as cancellations. ONE-WAY OUT — this door never
+    reads an edit back; the inbound road is google-pull
+    (B-159), and it drafts candidates, never writes."""
     from gpa.services import google_calendar as google_service
 
     counts = google_service.sync_group(
@@ -550,6 +552,32 @@ def sync_google(
         integration_id=integration_id,
     )
     return GoogleSyncResponse(integration_id=integration_id, **counts)
+
+
+@router.post(
+    "/{group_id}/integrations/{integration_id}/google-pull",
+    response_model=GooglePullResponse,
+)
+def pull_google(
+    integration_id: str,
+    request: Request,
+    context: GroupContext = Depends(require_group_role("organiser")),
+    principal: Principal = Depends(require_scope("publish")),
+    db: Session = Depends(get_db),
+):
+    """Pull Google-side edits as CHANGE CANDIDATES (B-159,
+    organiser+): each edit a person made on the Google copy
+    is drafted into the review queue — the event does not
+    move until a person approves the candidate there. Two-way
+    sync, with the queue never bypassed."""
+    from gpa.services import google_inbound as inbound_service
+
+    result = inbound_service.pull_edits(
+        db, request.app.state.settings,
+        actor_label=principal.label, group=context.group,
+        integration_id=integration_id,
+    )
+    return GooglePullResponse(integration_id=integration_id, **result)
 
 
 # --- Embed origins (B-135) ----------------------------------------------

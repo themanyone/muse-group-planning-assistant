@@ -1037,3 +1037,30 @@ paper:
   no frontend work: PostgreSQL promotion (same API, other
   engine), the native installer + systemd units, the
   reverse-proxy guide, RUNBOOK.md, and the upgrade script.
+
+---
+
+## Phase 16 notes (2026-10-25)
+
+- **Contract: 188 paths / 218 schemas** (was 187/217). One
+  additive route + one additive schema; nothing renamed,
+  nothing removed.
+- **`POST /api/v1/groups/{group_id}/integrations/{integration_id}/google-pull`**
+  (B-159, organiser + publish scope) → `GooglePullResponse
+  {integration_id, candidates_created, checked}`. It pulls
+  edits made on the Google copy into the review queue as
+  change candidates (author `system:google-calendar`) —
+  wire a "Check Google for edits" button next to the
+  existing sync button; results appear in the candidates
+  list like any other proposal. The event never changes
+  until a candidate is approved.
+- **New connector kinds** (B-158): `discord` and `slack`
+  are now valid `kind` values wherever `samtal` /
+  `messenger` already are (integration records, live
+  sources, health board). Same shapes, new drivers.
+- **TypeScript types are now also a package**:
+  `sdk/typescript/` (`gpa-types`) — its `index.d.ts` is
+  byte-identical to `frontend_types.ts`; import from
+  either, they cannot drift. A generated Python SDK and
+  `DEVELOPER.md` document the public surface (keys,
+  scopes, the public/embed doors) for outside builders.

@@ -49,12 +49,18 @@ dependencies = [
 dev = [
     "pytest>=8.2",
 ]
+queue = [
+    "arq>=0.28.0",
+]
 
 [project.scripts]
 # One command to run the background worker on its own, for operators
 # who run the service split across processes (roadmap Phase 20/26:
 # the service must be happy living in the background).
 gpa-worker = "gpa.worker:main"
+# The external-queue twin (B-157): same handlers, arq/Redis
+# transport, for deployments that selected GPA_JOB_QUEUE=arq.
+gpa-arq-worker = "gpa.arq_worker:main"
 
 [build-system]
 requires = ["hatchling"]

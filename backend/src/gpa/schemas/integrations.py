@@ -140,6 +140,16 @@ class GoogleSyncResponse(BaseModel):
     unchanged: int
 
 
+class GooglePullResponse(BaseModel):
+    """One Google inbound pull's counts (B-159): how many
+    Google-side edits were drafted as change candidates, out
+    of how many linked copies were compared."""
+
+    integration_id: str
+    candidates_created: int
+    checked: int
+
+
 # --- Reconciliation (B-137) --------------------------------------------
 
 

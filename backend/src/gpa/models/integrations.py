@@ -60,16 +60,24 @@ from gpa.models.identity import new_id, now_utc
 # for B-125, whose live access was never granted — the
 # registration record exists, the sync door answers with the
 # fallback (services/messenger.py tells that story plainly).
-CONNECTOR_KINDS: tuple[str, ...] = ("samtal", "messenger")
+# "discord" and "slack" are Phase 16's second wave (B-158):
+# new drivers (services/discord.py, services/slack.py) behind
+# this same framework — the framework did not change shape to
+# admit them.
+CONNECTOR_KINDS: tuple[str, ...] = ("samtal", "messenger", "discord", "slack")
 
 # The integration kinds the B-127 framework registers. Phase
 # 12's slices (Facebook Events, Google Calendar) register
 # under these names; until their slices land, their health
-# check honestly reports "not connected yet".
+# check honestly reports "not connected yet". Phase 16 added
+# the two chat platforms (B-158) — a group's Discord bot or
+# Slack app is an integration record like any other.
 INTEGRATION_KINDS: tuple[str, ...] = (
     "samtal",
     "facebook_events",
     "google_calendar",
+    "discord",
+    "slack",
     "custom",
 )
 

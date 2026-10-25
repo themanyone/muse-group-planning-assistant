@@ -676,6 +676,12 @@ export interface GenerateImageRequest {
   description?: string;
 }
 
+export interface GooglePullResponse {
+  candidates_created: number;
+  checked: number;
+  integration_id: string;
+}
+
 export interface GoogleSyncResponse {
   cancelled: number;
   integration_id: string;

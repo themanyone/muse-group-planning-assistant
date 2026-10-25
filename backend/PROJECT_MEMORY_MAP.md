@@ -1502,6 +1502,109 @@ Phase 16 begins at B-157.
   was accidentally committed once — it is removed again; treat a
   lock in the tree as stale if its timestamp is old.
 
+### Phase 16 — Scale and second integrations (B-157 → B-160): ✅ COMPLETE (2026-10-25)
+- **B-157 multi-instance jobs** (`6f7c7d2` + live-leg follow-up
+  `e5826e4`): `jobs.claim_next` now scans up to 16 due candidates;
+  a rowcount-0 lost race OR a database-level claim collision
+  (rolled back) is a clean outcome — never an exception, never a
+  double-run. Proven by `tests/test_job_race.py` (3 tests): four worker
+  threads on separate sessions drain 24 jobs with an audit-row
+  probe showing exactly one run per job, a barrier-synchronised
+  claim storm on one job yielding exactly one winner, and a claim
+  stepping over a head row another instance holds (a job made
+  un-claimable by a running claim's uncommitted UPDATE on SQLite).
+  `services/jobqueue.py` is the D-09 interface: `JobQueue`
+  protocol, `DatabaseJobQueue` (the default, delegates to the
+  chassis), `ArqJobQueue` behind it — arq is the optional `queue`
+  extra; submissions translate kind + JSON payload +
+  `_defer_until`/`_max_tries`; `run_gpa_job` dispatches into the
+  SAME `jobs.HANDLERS` registry, and a handler failure raises so
+  arq's retry owns it (the DB worker's semantics, translated, not
+  forked). `gpa-arq-worker` is the second console entry
+  (`GPA_JOB_QUEUE=arq` + `GPA_REDIS_URL` switch it on).
+  **The live leg RAN**: no Redis is packaged here, so redis-stable
+  was compiled from source in the verify sandbox (no Docker) and
+  a throwaway copy of the tree (`uv sync --extra queue`)
+  submitted through the REAL adapter → real Redis → real arq
+  worker → the shared registry; the handler's effect landed
+  exactly once (`arq:result` recorded). It caught two real
+  defects the boundary tests could not: `create_worker` lives in
+  `arq.worker` (not arq's top level), and the dispatcher must be
+  registered under its wire name (`arq.func(..., name="gpa_job")`)
+  or the worker reports the function not found. Both fixed in
+  `e5826e4`.
+- **B-158 second-wave sources** (`417fb1e`): Discord and Slack
+  joined the B-126/B-127 framework as new DRIVERS — no framework
+  change. `services/discord.py` / `services/slack.py` are client
+  boundaries in the samtal.py shape (Protocol + recorded-fixture
+  client + plain-words Unavailable client + process registry);
+  the shared normalised message shape is unchanged, and Slack's
+  ts-as-id mapping lives at its boundary. `CONNECTOR_KINDS` and
+  `INTEGRATION_KINDS` gain the two kinds; `livechat._fetch_new`
+  and `integrations._run_check` branch on them (the B-032
+  permission record: discord needs `bot_token` in the record's
+  config, slack needs `bot_token` too — a token-named key, never
+  a pasted secret in code); the health board speaks to both.
+  Live legs: NOT RUN (no Discord/Slack accounts may be connected
+  here) — the exact later step is one `discord`/`slack`
+  integration record with the bot token + connector check.
+- **B-159 two-way Google, revisited** (`9cd8904`):
+  `services/google_inbound.py` pulls Google-side edits as B-077
+  change candidates — the B-124 Samtal pattern, never a direct
+  write. The three-way comparison is the heart: outside copy vs
+  our current payload vs the link row's last-pushed hash — equal
+  to current means nothing happened; equal to the PUSHED payload
+  means our side moved and the copy is merely stale (drafting
+  would propose reverting our own edit); anything else is a
+  genuine outside edit and drafts (author
+  `system:google-calendar`, backing manual source, per-field
+  provenance, undecided-duplicate fingerprint; a retitle is
+  recorded in the source's words only — the B-077 draft shape
+  carries starts/ends/place/cancelled). `POST
+  …/integrations/{id}/google-pull` (organiser + publish) is the
+  door; a copy deleted on Google drafts nothing (drift is
+  B-137's story). Contract: **188 paths / 218 schemas**.
+  Acceptance proven in `tests/test_google_inbound.py`: the edit
+  waits, visibly, and a person's approval moves the event.
+- **B-160 public API + developer pack** (`14bfd22`):
+  `scripts/generate_sdk.py` generates `sdk/python/gpa_sdk.py`
+  from the frozen contract — one method per operation (242),
+  standard library only (urllib), `public_page`/`public_events`
+  sugar, deterministic bytes (the suite regenerates and
+  requires identity). `sdk/typescript/` is the `gpa-types`
+  package: `index.d.ts` a byte-identical promotion of
+  `frontend_types.ts`, `npm pack` proven by test; **registry
+  publish NOT RUN** — publishing is the owner's step
+  (`npm publish sdk/typescript`, after `npm login`).
+  `DEVELOPER.md` is the pack's front door (versioning, RFC 9457
+  codes, ETag/Idempotency, key self-service, scopes, the
+  no-approve-scope law, the public surface's absent-not-nulled
+  fields). `examples/public_events.py` — 16 lines — is the
+  acceptance, run by the suite as a separate process against a
+  REAL booted uvicorn server seeded over HTTP. **Defect found
+  by the pack's own round-trip test**: API keys travel in the
+  `X-API-Key` header, not as Bearer tokens — the SDK's first
+  draft and the doc both said Bearer and were refused
+  `token_invalid`; generator, SDK, and doc corrected at root,
+  the header now pinned by test.
+- **Phase 16 gate totals**: collected **908 = 881 (Phase 15)
+  + 27 new** (job_race 3, jobqueue 7, second-wave 7,
+  google-inbound 5, developer-pack 5). **SQLite: 904
+  passed, 4 skipped, 0 failed** (the 4 skips are the parity
+  tests standing down without an admin URL, by design).
+  **PostgreSQL: 892 passed on the engine, 16 skipped, 0
+  failed** — the full PG-mode run gave 888 passed / 20
+  skipped, the 20 being the 16 named SQLite-file tests plus
+  the 4 parity tests, which need their own
+  `GPA_TEST_PG_ADMIN_URL`; run with it against the same
+  tree and server they pass 4/4 (892 + 16 = 908). The first
+  PG attempt errored wholesale (888 setup errors): the
+  environment had reset and taken the cluster with it — the
+  run was discarded, `pg-bootstrap.sh` rebuilt the cluster,
+  and the gate was re-run from the top. Progress:
+  **160/350 slices, Phases 0–16 complete.** Contract: 188
+  paths / 218 schemas.
+
 ## Standing laws in force here
 
 - No Docker, anywhere, ever (native installs + uv only).

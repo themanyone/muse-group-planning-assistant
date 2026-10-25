@@ -776,3 +776,101 @@ record (`~/workspace/.verify-tmp/p15-gateH1/H2.log`,
   runbook 5, upgrade 7). Contract unchanged: 187 paths /
   217 schemas. Progress: **156/350 slices, Phases 0–15
   complete.**
+
+# Addendum — Phase 16 (B-160 gate, 2026-10-25; scale and second integrations)
+
+Phase 16 scaled what Phase 15 made operable: the job
+system claims work safely under many instances with an
+external-queue option behind the same door, two more live
+sources joined the framework as drivers, Google gained a
+queue-bound inbound road, and the API got a developer pack
+an outsider can actually build on.
+
+## Environment truth table — what "tested" meant here
+
+| Claim | How it was proven | Extent |
+|---|---|---|
+| DB claim protocol (B-157) | Real threads, real sessions: 4 worker threads drain 24 jobs (audit-row probe: exactly one run per job); a barrier-synchronised 4-way claim storm on ONE job (exactly one winner); a claim stepping over a head row held by another instance's uncommitted claim | The exactly-once discipline is the DB's (conditional UPDATE + lost-race/collision-as-clean-outcome), proven on SQLite; the same code path runs on PostgreSQL in the gate's parity run |
+| arq/Redis adapter (B-157) | **RAN end to end against a real Redis**: no Redis is packaged for this environment, so redis-stable was compiled from source in the verify sandbox (gcc present; no Docker anywhere). A throwaway copy of the tree (`uv sync --extra queue`) submitted one job through the REAL `ArqJobQueue` → real Redis (127.0.0.1:6399) → real arq worker on `jobqueue.worker_settings` → `run_gpa_job` → the shared handler registry; the handler's written effect landed exactly once and Redis recorded `arq:result:<id>` | The suite itself proves the adapter's translation at an injected pool double (CI needs no Redis); the live run is a one-time slice proof recorded here, reproducible in any deployment with: `uv sync --extra queue`, start any Redis, `GPA_JOB_QUEUE=arq GPA_REDIS_URL=redis://… gpa-arq-worker` |
+| Discord source (B-158) | Recorded-fixture driver behind the B-126 boundary: sync → chunks + speaker refs + cursor; speakers resolve only through account links; health check through the framework | **Live Discord leg NOT RUN** — no Discord account/bot may be connected in this environment. The exact later step: create a `discord` integration record with the bot token in its config (the B-032 permission record), run the connector check, then a live sync |
+| Slack source (B-158) | Same, through the slack boundary (ts-as-id mapping at the boundary) | **Live Slack leg NOT RUN** — same reason. Later step: a `slack` integration record with the workspace bot token, connector check, live sync |
+| Google inbound (B-159) | Fixture double through the REAL pull door and the REAL review queue: edit drafted → event unmoved → approval moved it; cancellation drafted as cancellation; our own unsynced edit drafted nothing (three-way compare); second pull deduplicated | **Live Google leg NOT RUN** — no Google account is connected here (the standing Phase 12 boundary). Later step: with a real client installed at the boundary, `POST …/google-pull` after any Google-side edit |
+| Python SDK (B-160) | Generated from the frozen contract; the suite regenerates it and requires byte-identical output; stdlib-only proven by AST import audit; the acceptance example ran as a separate process against a REAL booted uvicorn server (scratch DB, seeded over HTTP) and printed the seeded public event | Registry publication N/A for the SDK (it is a file, vendored by copying) |
+| TS types package (B-160) | `npm pack` run by the suite on a staged copy: tarball contains `package/index.d.ts` + `package/package.json`; index.d.ts byte-identical to `frontend_types.ts` | **npm registry publish NOT RUN** — publishing is the project owner's step: `npm login` once, then `npm publish sdk/typescript` (package is publish-shaped: name `gpa-types`, version 0.5.0, GPL-2.0-only) |
+
+## Defects this phase found (all fixed at the root, all covered)
+
+1. **arq's `create_worker` import** (B-157's live leg):
+   `gpa.arq_worker` imported it from arq's top level; in
+   arq 0.28 it lives in `arq.worker`. The console entry
+   would have died on its first real run — the boundary
+   tests could not see it; the live run did.
+2. **arq function-name registration** (same leg): the
+   worker settings registered the dispatcher under its
+   Python name while submissions address it as `gpa_job`;
+   the real worker reported "function not found" and the
+   job sat unrun. Registered with `arq.func(..., name=…)`
+   now; proven by the same live run completing.
+3. **API keys are not Bearer tokens** (B-160's round-trip
+   test): keys travel in the `X-API-Key` header by design
+   (deps keeps the doors apart), but the developer pack's
+   first SDK draft and DEVELOPER.md both said
+   `Authorization: Bearer gpa_…` and were refused
+   `token_invalid`. Generator template, generated SDK, and
+   doc corrected; the test pins the header by using it.
+
+## Phase 16's new tests (27)
+
+- B-157: test_job_race.py (3 — four-thread drain with an
+  audit-row exactly-once probe, barrier claim storm on one
+  job, claim stepping over a held head row) +
+  test_jobqueue.py (7 — delegation, unknown backend, arq
+  refusals, translation at a fake pool, dispatch,
+  failure-raises, unknown kind).
+- B-158: test_second_wave_sources.py (7 — both platforms'
+  fixture sync, unavailable refusals recorded, link-only
+  speaker resolution, framework health).
+- B-159: test_google_inbound.py (5 — the acceptance,
+  three-way discipline, outside cancellation, missing
+  copy, plain refusal).
+- B-160: test_developer_pack.py (5 — byte-identical regen,
+  stdlib-only + sugar, npm pack, key round trip, the
+  booted-server acceptance).
+
+## Gate totals (final tree, both engines)
+
+Totals are read from the runs' own logs
+(`~/workspace/.verify-tmp/p16-full-sqlite.log`,
+`p16-full-pg2.log`, `p16-parity.log`) — never from a
+pipeline's exit code.
+
+- **Collected: 908 = 881 (Phase 15 gate) + 27 new**
+  (job_race 3, jobqueue 7, second-wave sources 7,
+  google-inbound 5, developer-pack 5).
+- **SQLite: 904 passed, 4 skipped, 0 failed** in a single
+  full run (36 m 40 s). The 4 skips are the PostgreSQL
+  parity tests standing down without an admin URL, by
+  design — the same 4 as every gate since B-152.
+- **PostgreSQL: 892 passed on the engine, 16 skipped,
+  0 failed.** Two runs, stated separately because they
+  were separate: the full suite in PG mode
+  (`GPA_TEST_PG_URL`, 7 m 49 s) gave **888 passed, 20
+  skipped** — the 20 being the 16 named SQLite-file tests
+  of `PG_FILE_TESTS` (counted exactly: that file set skips
+  16 in PG mode) plus the 4 parity tests, which key on
+  their own `GPA_TEST_PG_ADMIN_URL`. The parity file run
+  with that URL against the same tree and the same server
+  passed **4/4** (migration chain up/down/up, the mover,
+  core flow + erasure, sealed-secret absence). 892 + 16 =
+  908, and 904 + 4 = 908: both engines reconcile.
+- **The discarded first PG attempt** (log
+  `p16-full-pg.log`): 888 setup errors, 0 passed — the
+  build environment reset mid-gate and took `/tmp/pgrun`
+  (the cluster) and the `pgdev` user with it, the same
+  failure Phase 15's gate met. `pg-bootstrap.sh` rebuilt
+  the cluster from the workspace-preserved binaries and
+  data, and the PG gate was re-run from the top; no number
+  from the dead run is used anywhere above.
+- Contract: **188 paths / 218 schemas** (B-159's one
+  additive route). Progress: **160/350 slices, Phases 0–16
+  complete.**

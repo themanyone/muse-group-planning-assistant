@@ -17,6 +17,7 @@ from datetime import timedelta
 from typing import Callable
 
 from sqlalchemy import update
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from gpa.config import Settings
@@ -89,30 +90,55 @@ def get_job(db: Session, job_id: str) -> Job:
     return job
 
 
-def claim_next(db: Session, worker_id: str) -> Job | None:
-    """Claim the oldest due job for this worker, or None.
+# How many due candidates one claim call will try before it
+# reports "nothing claimable right now" (B-157). A multi-instance
+# deployment's workers all read the same oldest rows first; a
+# worker that only ever tried the single oldest would report an
+# empty queue while rows behind the contended head sat claimable.
+_CLAIM_SCAN_LIMIT = 16
 
-    The claim is one conditional UPDATE ... WHERE status='queued':
-    if another worker won the race, the update touches zero rows
-    and we move on. That is what makes double-running impossible.
+
+def claim_next(db: Session, worker_id: str) -> Job | None:
+    """Claim the oldest claimable due job for this worker, or None.
+
+    The claim is one conditional UPDATE ... WHERE status='queued'
+    per candidate: if another worker won that row's race, the
+    update touches zero rows and we try the next candidate. That
+    conditional is what makes double-running impossible — and
+    since B-157 it is a LOOP, not a single shot, so a worker
+    that loses the head of the queue still finds the work behind
+    it in the same call.
+
+    A claim can also collide at the database itself (on
+    PostgreSQL a peer's transaction can make our UPDATE raise
+    instead of returning zero rows). That collision is a LOST
+    RACE, not an error: it is caught, the session rolls back,
+    and the scan moves on — the constraint's verdict reaches the
+    caller as a clean outcome, never as an exception.
     """
-    candidate = (
+    candidates = (
         db.query(Job)
         .filter(Job.status == "queued", Job.run_at <= now_utc())
         .order_by(Job.run_at, Job.created_at)
-        .first()
+        .limit(_CLAIM_SCAN_LIMIT)
+        .all()
     )
-    if candidate is None:
-        return None
-    result = db.execute(
-        update(Job)
-        .where(Job.id == candidate.id, Job.status == "queued")
-        .values(status="running", locked_by=worker_id)
-    )
-    db.commit()
-    if result.rowcount != 1:
-        return None  # Lost the race — the other worker has it.
-    return get_job(db, candidate.id)
+    for candidate in candidates:
+        try:
+            result = db.execute(
+                update(Job)
+                .where(Job.id == candidate.id, Job.status == "queued")
+                .values(status="running", locked_by=worker_id)
+            )
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            continue  # Lost that row's race at the database. Next.
+        if result.rowcount == 1:
+            return get_job(db, candidate.id)
+        # Rowcount 0: a peer claimed it between our read and our
+        # update. The next candidate may still be ours.
+    return None
 
 
 def _finish(db: Session, job: Job, settings: Settings, error: Exception | None) -> None:

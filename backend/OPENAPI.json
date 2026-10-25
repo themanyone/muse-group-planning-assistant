@@ -3778,6 +3778,30 @@
         "title": "GenerateImageRequest",
         "type": "object"
       },
+      "GooglePullResponse": {
+        "description": "One Google inbound pull's counts (B-159): how many\nGoogle-side edits were drafted as change candidates, out\nof how many linked copies were compared.",
+        "properties": {
+          "candidates_created": {
+            "title": "Candidates Created",
+            "type": "integer"
+          },
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "integration_id": {
+            "title": "Integration Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "integration_id",
+          "candidates_created",
+          "checked"
+        ],
+        "title": "GooglePullResponse",
+        "type": "object"
+      },
       "GoogleSyncResponse": {
         "description": "One Google sync run's counts: copies created, copies\nbrought back into agreement, cancellations propagated,\nand copies already current (left alone).",
         "properties": {
@@ -16646,9 +16670,61 @@
         ]
       }
     },
+    "/api/v1/groups/{group_id}/integrations/{integration_id}/google-pull": {
+      "post": {
+        "description": "Pull Google-side edits as CHANGE CANDIDATES (B-159,\norganiser+): each edit a person made on the Google copy\nis drafted into the review queue \u2014 the event does not\nmove until a person approves the candidate there. Two-way\nsync, with the queue never bypassed.",
+        "operationId": "pull_google_api_v1_groups__group_id__integrations__integration_id__google_pull_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "integration_id",
+            "required": true,
+            "schema": {
+              "title": "Integration Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GooglePullResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull Google",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/groups/{group_id}/integrations/{integration_id}/google-sync": {
       "post": {
-        "description": "Run one Google Calendar sync (organiser+): published\nevents upsert into the chosen calendar, cancellations\npropagate as cancellations. ONE-WAY OUT \u2014 edits made on\nGoogle are never read back into events here.",
+        "description": "Run one Google Calendar sync (organiser+): published\nevents upsert into the chosen calendar, cancellations\npropagate as cancellations. ONE-WAY OUT \u2014 this door never\nreads an edit back; the inbound road is google-pull\n(B-159), and it drafts candidates, never writes.",
         "operationId": "sync_google_api_v1_groups__group_id__integrations__integration_id__google_sync_post",
         "parameters": [
           {

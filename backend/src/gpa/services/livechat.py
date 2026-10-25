@@ -26,7 +26,10 @@ Connector dispatch is by the source's ``connector_kind``:
 ``samtal`` speaks through services/samtal.py's client
 boundary; ``messenger`` answers with B-125's honest refusal
 (the platform never granted this project live access — the
-fallback is paste/export ingest, and the door says so).
+fallback is paste/export ingest, and the door says so);
+``discord`` and ``slack`` (B-158's second wave) speak through
+their own client boundaries in the same shape — new drivers
+behind this dispatch, which itself did not change.
 """
 
 from datetime import datetime, timezone
@@ -298,6 +301,26 @@ def _fetch_new(source: Source, cursor: str) -> tuple[list[dict], str]:
         from gpa.services import messenger as messenger_service
 
         return messenger_service.fetch_messages(source, cursor)
+    if source.connector_kind == "discord":
+        # B-158: the second wave arrives through the same
+        # dispatch — a new driver, not a new architecture.
+        from gpa.services import discord as discord_service
+
+        try:
+            return discord_service.get_client().fetch_messages(
+                source.external_id, cursor
+            )
+        except discord_service.DiscordUnavailable as err:
+            raise AppError("validation_error", detail=str(err)) from err
+    if source.connector_kind == "slack":
+        from gpa.services import slack as slack_service
+
+        try:
+            return slack_service.get_client().fetch_messages(
+                source.external_id, cursor
+            )
+        except slack_service.SlackUnavailable as err:
+            raise AppError("validation_error", detail=str(err)) from err
     raise AppError(
         "validation_error",
         detail=(
