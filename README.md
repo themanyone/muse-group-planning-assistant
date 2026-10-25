@@ -1,3 +1,7 @@
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/Muse_From_Chaos_to_Plans.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/Muse_From_Chaos_to_Plans.png)
+
+---
+
 # Muse Group Planning Assistant
 
 **Turning group noise into organized plans.**
