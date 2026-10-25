@@ -2,7 +2,7 @@
 
 **Turning group noise into organized plans.**
 
-Muse GPA Group Planning Assistant is an intelligent tool designed to help groups—from hiking clubs and gaming guilds to families and nonprofits—capture and organize their plans from the messy reality of everyday communication.
+Muse Group Planning Assistant (GPA) is an intelligent tool designed to help groups—from hiking clubs and gaming guilds to families and nonprofits—capture and organize their plans from the messy reality of everyday communication.
 
 ## 🌟 The Core Idea: The Machine Drafts, The Human Decides
 
@@ -66,7 +66,7 @@ bash test.sh
 ```
 
 ## 📜 License
-This project is licensed under the GNU General Public License v2.0.
+This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 ---
 
