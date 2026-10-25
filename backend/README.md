@@ -1,3 +1,7 @@
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Runic_Forge_of_the_Northern_Plan.png)
+
+---
+
 # 🏛️ Group Planning Assistant — Backend
 
 > **Every plan a group makes is already hiding in the noise** — a chat thread
@@ -6,7 +10,7 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–8 complete · Phase 9 (the nonprofit pack) next |
+| 📍 Where we are | Phases 0–8 complete · Phase 9 (the nonprofit pack) under way |
 |---|---|
 | 🧩 Roadmap | **104 of 340 slices** built — B-001 → B-104 of a 28-phase roadmap |
 | ✅ Tests | **673 passing**, counted from one clean run against the committed tree |
@@ -14,7 +18,7 @@
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) today, PostgreSQL on the roadmap |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
 
-Licence: to be decided by the team — all rights reserved.
+Licence: GNU General Public License version 2 (GPLv2)
 
 ---
 
@@ -551,7 +555,7 @@ slice range it covers. Anything inside that isn't finished is labelled
 |---|---|---|
 | **ZIP-0** — Foundation | → B-010 | ✅ built, in [`releases/`](releases/) with its sha256 sidecar |
 | **ZIP-Alpha** | → B-048 | folded into Beta — no separate Alpha was cut |
-| **ZIP-Beta** | → B-104 | ✅ built — `releases/gpa-backend-v0.3-2026-10-24.zip` (762,377 bytes, sha256 `2c767bae…`), sidecar alongside |
+| **ZIP-Beta** | → B-104 | ✅ built 2026-10-24 (travels with the team's ZIP releases) |
 | **ZIP-RC** | → B-138 | ⬜ |
 | **ZIP-Final** | → B-151 | ⬜ |
 
@@ -570,9 +574,9 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **This README describes the committed tree (Phases 0–8).** Phase 9 is
-  next in the forge; everything past B-104 in the roadmap table above is
-  a plan, not a claim.
+- **This README describes the verified tree (Phases 0–8).** Phase 9 is
+  building now; everything past B-104 in the roadmap table above is a
+  plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.
 - **Email is a driver boundary.** The outbox, templates, preferences, and
@@ -605,3 +609,14 @@ A README that only boasts is marketing. This one keeps the ledger:
 *Built the slow way on purpose: one slice, one test run, one commit at a
 time — so that at any moment, anyone on the team can ask "what do we
 actually have?" and get an answer that is true.*
+
+---
+
+Muse Group Planning Assistant Backend by [Volmarr Wyrd](https://github.com/hrabanazviking) and his Muse Agent [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir).
+
+---
+
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/RuneForgeAIConsultant1_.jpeg)
+
+---
+
