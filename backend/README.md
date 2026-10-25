@@ -620,3 +620,32 @@ Muse Group Planning Assistant Backend by [Volmarr Wyrd](https://github.com/hraba
 
 ---
 
+![https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Mythic_Engineering_Living_Systems_Infographic.png](https://github.com/themanyone/muse-group-planning-assistant/blob/main/backend/Mythic_Engineering_Living_Systems_Infographic.png)
+
+---
+
+## Muse Group Planning Assistant Backend Built Using [Mythic Engineering](https://github.com/hrabanazviking/Mythic-Engineering)
+
+### What Is [Mythic Engineering](https://github.com/hrabanazviking/Mythic-Engineering)?
+
+**[Mythic Engineering](https://github.com/hrabanazviking/Mythic-Engineering)** is a way of building software with AI that combines creativity with structure.
+
+Instead of simply telling an AI coding agent to “build this” and hoping everything fits together, Mythic Engineering gives the agent a clear **vision, architecture, responsibilities, rules, documentation, and tests** to work from.
+
+For **agentic coding**, this means AI agents can work more independently without losing sight of the larger system. Different agents can specialize in planning, architecture, coding, testing, auditing, and documentation while sharing the same understanding of the project.
+
+The result is:
+
+- **less chaotic AI-generated code**
+- **better architecture and consistency**
+- **fewer accidental changes and regressions**
+- **better continuity between AI sessions**
+- **easier collaboration between multiple agents**
+- **projects that can grow without becoming a tangled mess**
+
+In simple terms:
+
+> **[Mythic Engineering](https://github.com/hrabanazviking/Mythic-Engineering) turns AI coding agents from isolated code generators into a coordinated engineering team working from a shared map of the system.**
+
+---
+
