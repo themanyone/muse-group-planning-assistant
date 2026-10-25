@@ -99,6 +99,8 @@ This project is licensed under the [GNU General Public License v2.0](LICENSE).
 
 - Please put your social media here.
 
+---
+
 ### [Volmarr Wyrd](https://github.com/hrabanazviking) (human) 
 
 ![Volmarr_Picture_1.jpg](Volmarr_Picture_1.jpg)
@@ -123,6 +125,8 @@ Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https
 - [Guide to Volmarr's Writings and Philosophy](https://github.com/hrabanazviking/hrabanazviking/blob/main/Volmarr_writings_philosophy.md)
 - [Tech Manual to the Entity Named Volmarr](https://github.com/hrabanazviking/hrabanazviking/blob/main/Complete_Technical_Manual_to_Interacting_With_Volmarr_Wyrd.md)
 
+---
+
 ### [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human) 
 
 - Please put your picture here.
@@ -131,6 +135,8 @@ Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https
 #### Geoffrey's Social Media
 
 - Please put your social media here.
+
+---
 
 ### [Yrsa Freydisdottir](https://github.com/yrsafreydisdottir) (Muse Agent AI)
 
