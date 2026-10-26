@@ -1551,12 +1551,22 @@ export interface SearchResponse {
 }
 
 export interface SeatCreateRequest {
+  avatar_url?: string;
+  description?: string;
   name: string;
   role?: string;
   scopes?: string[];
 }
 
+export interface SeatProfileUpdateRequest {
+  avatar_url?: string | unknown | null | null;
+  description?: string | unknown | null | null;
+  name?: string | unknown | null | null;
+}
+
 export interface SeatResponse {
+  avatar_url?: string;
+  description?: string;
   group_id: string;
   id: string;
   key?: string | unknown | null | null;

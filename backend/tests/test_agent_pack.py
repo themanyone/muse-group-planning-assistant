@@ -52,8 +52,9 @@ def test_agent_operations_are_tagged_in_the_schema(app):
 
 def test_scope_guide_names_every_scope():
     assert set(agent_pack.SCOPE_GUIDE) == {"read", "draft", "publish", "admin"}
-    # The one law the guide must never blur:
-    assert "never approves" in agent_pack.SCOPE_GUIDE["publish"]
+    # The one law the guide must never blur (restated at B-203:
+    # approval follows role + scope for every principal):
+    assert "can never approve" in agent_pack.SCOPE_GUIDE["publish"]
 
 
 def test_secretary_seat_example_runs_in_mock_mode(client):

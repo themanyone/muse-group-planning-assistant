@@ -10,10 +10,10 @@
 > of the noise, writes it down as a draft *with its receipts*, and then waits
 > for a human being to say yes.
 
-| 📍 Where we are | Phases 0–18 complete · Phase 19 (equal principals, total API parity, and the advanced MCP server) next |
+| 📍 Where we are | Phases 0–18 complete · Phase 19 built through B-220 · **build halted 2026-10-26 at Volmarr's order**, pending the event's proper setup (Discord access + API keys) |
 |---|---|
-| 🧩 Roadmap | **200 of 350 slices** built — B-001 → B-200 of a 29-phase roadmap |
-| ✅ Tests | **1,056 passing** on SQLite (1,013 on PostgreSQL at the Phase 17 gate), counted from clean runs against the committed tree |
+| 🧩 Roadmap | **220 of 350 slices** built — B-001 → B-220 of a 29-phase roadmap |
+| ✅ Tests | Last full-suite proof: **1,056 passing** on SQLite at the Phase 18 gate (1,013 on PostgreSQL at the Phase 17 gate); Phase 19's full-suite gate proof is deferred at the halt — every Phase 19 slice passed its own batches as built |
 | 📜 API contract | **201 paths · 229 schemas**, frozen in [`OPENAPI.json`](OPENAPI.json) |
 | 🐍 Stack | Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2.0 · SQLite (WAL) and PostgreSQL, both proven by the same suite |
 | 🏠 Born for | The Meta Global AI Developer Hackathon — a team entry, built Oct 26 → Nov 4, 2026 |
@@ -533,7 +533,7 @@ code provably the team's own work).
 | 16 | Scale and second integrations | B-157 → B-160 | ✅ |
 | 17 | Modularity, internal encrypted API, resilience, and craft | B-161 → B-180 | ✅ |
 | 18 | Documentation, diagrams, and the per-file code atlas | B-181 → B-200 | ✅ |
-| 19 | Equal principals, total API parity, and the advanced MCP server | B-201 → B-220 | ⬜ |
+| 19 | Equal principals, total API parity, and the advanced MCP server | B-201 → B-220 | ⏸ |
 | 20 | The terminal app: TUI + scriptable CLI | B-221 → B-235 | ⬜ |
 | 21 | Multi-user by design, secure over real networks | B-236 → B-250 | ⬜ |
 | 22 | Universal platform support — desktop, mobile, Raspberry Pi | B-251 → B-265 | ⬜ |
@@ -576,9 +576,12 @@ lockfile-recorded packages.
 
 A README that only boasts is marketing. This one keeps the ledger:
 
-- **This README describes the committed tree (Phases 0–18).** Phase 19
-  is next in the forge; everything past B-200 in the roadmap table above
-  is a plan, not a claim.
+- **This README describes the committed tree (Phases 0–18 complete,
+  Phase 19 built through B-220).** Phase 19's closing gate proof — the
+  full suite run whole — is deferred: the build halted on 2026-10-26 at
+  Volmarr's order while the team waits for the event's proper setup
+  (Discord access and API keys). Everything past B-220 in the roadmap
+  table above is a plan, not a claim.
 - **No live model endpoint** has been called from this environment (see the
   adapter section). Fixture and mock drivers carry every demo and test.
 - **Email is a driver boundary.** The outbox, templates, preferences, and

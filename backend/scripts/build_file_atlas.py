@@ -94,6 +94,15 @@ LAYER_LAWS: dict[str, tuple[str, str]] = {
         "on the wire door; dispatch happens in the caller's "
         "transaction or not at all.",
     ),
+    "mcp": (
+        "May import: stdlib, the MCP SDK, the internal API, and "
+        "the foundation files (config, db, errors). Forbidden: "
+        "services, routers, models, schemas — the internal API "
+        "is this surface's only door (B-204).",
+        "Refusals travel as MCP tool errors carrying the "
+        "backend's problem code; log lines carry call facts "
+        "only, never payloads or secrets.",
+    ),
     "storage": (
         "May import: stdlib, cryptography (encrypted driver). "
         "Forbidden: everything above the data layer.",

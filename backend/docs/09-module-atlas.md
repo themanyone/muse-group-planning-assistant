@@ -103,10 +103,12 @@ exists, under the name it actually carries.*
 - **Invariants:** secrets are hashed at rest and shown
   once; a reused refresh token revokes its whole family;
   password, email, and reset acts revoke existing
-  sessions; a seat can draft and plan at its role and can
-  never approve (`seat_cannot_approve`, enforced in the
-  services it touches), with identity supplying the
-  principal truth.
+  sessions; a seat can draft and plan at its role and is
+  bound by the one approval law exactly as a person of
+  that role (B-203: below the review floor,
+  `seat_cannot_approve`, enforced in the services it
+  touches; at the floor with publish, it approves as
+  itself), with identity supplying the principal truth.
 - **Failure modes:** wrong credentials refuse identically
   whether the account exists or not; auth routes are
   per-IP token-bucketed (429 with `Retry-After`); MFA has

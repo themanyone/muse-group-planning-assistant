@@ -410,6 +410,35 @@ def verify_release(
                     "the manifest's signing key_id does not match the "
                     "public key that verified the signature."
                 )
+            # B-206: the MCP tool descriptions are manifest facts.
+            # Recompute each description's hash and the digest over
+            # the whole list (the registry's canonical form: compact
+            # JSON, sorted keys) — a swapped description inside the
+            # manifest fails here even before anyone compares the
+            # manifest against a served server.
+            mcp_tools = manifest.get("mcp_tools")
+            if mcp_tools is not None:
+                for entry in mcp_tools:
+                    digest = hashlib.sha256(
+                        str(entry.get("description", "")).encode("utf-8")
+                    ).hexdigest()
+                    if digest != entry.get("description_sha256"):
+                        problems.append(
+                            f"the manifest's MCP tool '{entry.get('name')}' "
+                            "description does not match its recorded "
+                            "SHA-256 — a description was swapped after "
+                            "the manifest was written."
+                        )
+                canonical = json.dumps(
+                    mcp_tools, sort_keys=True, separators=(",", ":")
+                )
+                whole = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+                if whole != manifest.get("mcp_tools_digest"):
+                    problems.append(
+                        "the manifest's mcp_tools_digest does not match "
+                        "its MCP tool list — the catalogue changed after "
+                        "the digest was stamped."
+                    )
     return problems
 
 

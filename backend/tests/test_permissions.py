@@ -107,14 +107,20 @@ def test_role_matrix(client, world, action, role):
 
 
 def test_seat_can_draft_cannot_approve(client, world):
-    """B-018's exact promise: a draft-scope seat creates candidates
-    and can never approve — even with organiser role and publish
-    scope on its key, approval is a person's act."""
+    """SUPERSEDED at Phase 19 (B-203) — the B-018 blanket ban this
+    test first pinned (an organiser seat with publish refused
+    approval outright) is replaced by the one approval law: a
+    seat approves under exactly its role's rules. What survives
+    of the original promise, asserted here at full strength: a
+    MEMBER seat — below the group's approver role — creates
+    candidates and can never approve, even with the publish
+    scope on its key. The organiser-seat half of the new law
+    lives in tests/test_seat_equality.py."""
     gid = world["group"]["id"]
     owner = world["people"]["owner"]
     seat = client.post(
         f"/api/v1/groups/{gid}/seats",
-        json={"name": "Secretary", "role": "organiser", "scopes": ["read", "draft", "publish"]},
+        json={"name": "Secretary", "role": "member", "scopes": ["read", "draft", "publish"]},
         headers=bearer(owner),
     )
     assert seat.status_code == 201, seat.text

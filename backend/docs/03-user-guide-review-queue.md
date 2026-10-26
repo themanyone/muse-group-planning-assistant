@@ -4,10 +4,13 @@
 decide. Everything the app drafts — from a pasted chat, a
 newsletter, a flyer photo — waits in the **review queue** as a
 **candidate**: a draft with its evidence attached. Nothing in
-the queue is real yet. A candidate becomes real only when a
-person approves it here, and an agent seat can never approve —
-that refusal (`seat_cannot_approve`) is enforced in the
-service, not just hidden in the buttons.*
+the queue is real yet. A candidate becomes real only when an
+approver approves it here. Since B-203 an agent seat stands
+under the same approval law as a person of the same role: a
+seat below the group's review floor is refused in the
+service (`seat_cannot_approve`), not just hidden in the
+buttons, while an organiser seat holding the publish scope
+approves through this same door, audited as itself.*
 
 ## 1. Open the queue and read a candidate
 
@@ -126,8 +129,13 @@ closed vocabulary, each naming the field it concerns:
    `approvals_required` shown on the candidate) and the
    candidate stays pending until the count is met; approving
    twice yourself is refused — the second must be a second
-   person. An **agent seat can never approve**, at any role,
-   with any key scope.
+   principal — a second approval by the same principal,
+   person or seat, is refused. An **agent seat is bound by
+   exactly this law** (B-203): below the review floor it
+   meets `seat_cannot_approve`, a draft-scoped seat stops
+   at `insufficient_scope`, and an organiser seat holding
+   publish approves as itself. No agent-only override
+   exists anywhere.
 3. **Reject** [`POST …/candidates/{candidate_id}/reject`]
    sends the draft away without minting anything. Rejection
    of a change candidate (§7) leaves the event it targeted

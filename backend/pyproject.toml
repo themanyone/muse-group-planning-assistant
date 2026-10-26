@@ -44,6 +44,7 @@ dependencies = [
     # SQLite stays the default; the URL is the only switch.
     "psycopg[binary]>=3.1",
     "cryptography>=50.0.2",
+    "mcp>=1.25,<2",
 ]
 
 [project.optional-dependencies]
@@ -62,6 +63,11 @@ gpa-worker = "gpa.worker:main"
 # The external-queue twin (B-157): same handlers, arq/Redis
 # transport, for deployments that selected GPA_JOB_QUEUE=arq.
 gpa-arq-worker = "gpa.arq_worker:main"
+# The MCP server (B-204, Phase 19): stdio by default for local
+# agents, `--transport streamable-http` for remote agents. It
+# speaks only through the internal encrypted API, as its own
+# service identity.
+gpa-mcp = "gpa.mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

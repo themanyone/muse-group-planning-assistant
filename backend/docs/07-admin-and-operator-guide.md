@@ -46,10 +46,14 @@ own name, and everything it does is attributed to the
 seat — never silently to you.** Its key is **shown once**
 at creation and kept only as a hash afterwards; lose it
 and you mint a new seat, you do not recover the old key.
-A seat can draft, read, post, and plan at its role — and
-a seat **can never approve** (`seat_cannot_approve`,
-enforced in the service, not just hidden in a menu): the
-one approval law has no agent exception.
+A seat can draft, read, post, and plan at its role. The
+one approval law binds it exactly as it binds a person of
+the same role (B-203): a seat below the group's review
+floor meets `seat_cannot_approve`, enforced in the service,
+not just hidden in a menu, while an organiser seat holding
+the publish scope approves through the same door, audited
+as itself. There is no agent exception in either direction
+— no bypass, and no blanket ban.
 
 Create [`POST /api/v1/groups/{id}/seats`] (admin): name,
 role, and scopes (the API-key ladder of chapter I —

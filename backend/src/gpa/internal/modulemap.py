@@ -154,6 +154,7 @@ SERVICE_MODULES: dict[str, str] = {
     "resilience": "platform",  # B-173: breakers + bulkheads per dependency
     "repair": "platform",  # B-173: the fix-forward data-repair crew
     "chaos": "platform",  # B-175: the crash-correction harness core
+    "parity": "platform",  # B-201: the API-parity register + checker
 }
 
 # Modules whose public functions are their whole surface, open
@@ -200,6 +201,7 @@ def layer_of(relpath: str) -> str:
         "ai",
         "storage",
         "internal",
+        "mcp",
     ):
         return parts[2]
     return "root"

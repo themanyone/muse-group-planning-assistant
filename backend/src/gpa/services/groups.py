@@ -320,16 +320,24 @@ def create_seat(
     name: str,
     role: str = "member",
     scopes: list[str] | None = None,
+    description: str = "",
+    avatar_url: str = "",
 ) -> tuple[AgentSeat, str]:
     """Create an agent seat and issue its key.
 
-    The seat's powers are its role MINUS approval (enforced when
-    approving, see approve_candidate) and its key's scopes. Returns
+    The seat's powers are its role and its key's scopes, under
+    the one approval law (B-203, see approve_candidate): a seat
+    approves only when its role is the group's approver role,
+    exactly as a person would. Phase 19 (B-202) gives the seat
+    a profile at birth — description and avatar URL. Returns
     (seat, full key) — the key is shown once.
     """
     if role not in ROLE_ORDER:
         raise AppError("validation_error", detail="That is not a role.")
-    seat = AgentSeat(group_id=group.id, name=name, role=role, created_by_user_id=actor.id)
+    seat = AgentSeat(
+        group_id=group.id, name=name, role=role, created_by_user_id=actor.id,
+        description=description or "", avatar_url=avatar_url or "",
+    )
     db.add(seat)
     db.flush()
     key_row, full_key = create_api_key(
@@ -347,6 +355,40 @@ def create_seat(
 def list_seats(db: Session, group: Group) -> list[AgentSeat]:
     """All seats in a group."""
     return db.query(AgentSeat).filter(AgentSeat.group_id == group.id).all()
+
+
+def get_seat(db: Session, group: Group, seat_id: str) -> AgentSeat:
+    """One seat of this group, or 404 (another group's seat is
+    indistinguishable from a missing one)."""
+    seat = db.get(AgentSeat, seat_id)
+    if seat is None or seat.group_id != group.id:
+        raise AppError("not_found", detail="That seat could not be found.")
+    return seat
+
+
+def update_seat_profile(
+    db: Session, *, actor_label: str, group: Group, seat_id: str, changes: dict,
+) -> AgentSeat:
+    """Edit a seat's profile (B-202): display name, description,
+    avatar URL. The router decides WHO may call this — the seat
+    itself, or an admin person — this service owns the edit and
+    its audit line, attributed to the caller under their own
+    label (a seat's edit is the seat's, never its creator's).
+    Role and scopes never move here: they are not profile."""
+    seat = get_seat(db, group, seat_id)
+    for field in ("name", "description", "avatar_url"):
+        if field in changes and changes[field] is not None:
+            setattr(seat, field, str(changes[field]))
+    if "name" in changes and not seat.name.strip():
+        raise AppError("validation_error", detail="A seat needs a name.")
+    db.flush()
+    audit.record(
+        db, actor=actor_label, action="seat.profile_updated",
+        group_id=group.id, entity_type="seat", entity_id=seat.id,
+        detail={"fields": sorted(k for k in changes if changes[k] is not None)},
+    )
+    db.commit()
+    return seat
 
 
 # --- Candidate stub (B-018): the founding permission rule -----------------
@@ -410,11 +452,26 @@ def review_progress(db: Session, candidate: Candidate) -> tuple[int, int]:
 def approve_candidate(
     db: Session, *, actor_label: str, actor_is_seat: bool, group: Group,
     candidate_id: str, actor_user_id: str | None = None,
-    actor_role: str | None = None,
+    actor_role: str | None = None, actor_seat_id: str | None = None,
 ) -> Candidate:
-    """Approve a candidate. THE rule (B-018): a seat can draft but
-    can never approve — approval is a person's act, checked here in
-    the service so no route can forget it.
+    """Approve a candidate. THE one approval law (B-203, Phase 19,
+    restating B-018): equality is of standing, not of bypass —
+    EVERY principal, person or seat, approves under exactly the
+    same rules: the credential's publish scope at the door, and
+    here in the service (where no route can forget it) the
+    group's ``review_min_role`` and ``review_approvals_required``.
+
+    What changed from B-018's founding form: the blanket seat
+    ban is superseded. A seat whose role is below the group's
+    approver role still can never approve — refused here with
+    ``seat_cannot_approve``, the seat form of the same refusal
+    a person below the role meets — and a draft-scoped seat
+    stops at the door's scope check like anyone's draft key.
+    But an organiser seat holding publish approves exactly as
+    a human organiser does, through this same operation, its
+    act audited under the seat's own label. There is no
+    agent-only override anywhere: no second door, no weaker
+    check, no silent attribution to the seat's creator.
 
     Phase 9 (B-111) adds the group's own review rules, enforced
     here for the same reason: the settings pack decides the
@@ -425,9 +482,20 @@ def approve_candidate(
     count, an approval is RECORDED and the candidate stays
     pending; the approval that meets the count runs the whole
     ordinary approval — mints and all — in its transaction.
+    Distinctness is per principal: a seat's recorded approval
+    is keyed by the seat's id, a person's by their user id.
     """
-    if actor_is_seat:
-        raise AppError("seat_cannot_approve")
+    if actor_is_seat and (
+        actor_role is None or not role_at_least(actor_role, group.review_min_role)
+    ):
+        raise AppError(
+            "seat_cannot_approve",
+            detail=(
+                f"Approving in this group needs a {group.review_min_role} "
+                "or above — this seat's role is below that, exactly as "
+                "a person below the role would be refused."
+            ),
+        )
     candidate = db.get(Candidate, candidate_id)
     if candidate is None or candidate.group_id != group.id:
         raise AppError("not_found", detail="That candidate could not be found.")
@@ -448,16 +516,21 @@ def approve_candidate(
         )
     required = group.review_approvals_required or 1
     if required > 1:
-        if actor_user_id is None:
+        # The distinct-approver identity (B-203): a person's
+        # user id, or a seat's seat id — the column holds the
+        # approving principal's id either way, and the label
+        # beside it says which kind acted.
+        approver_id = actor_user_id or actor_seat_id
+        if approver_id is None:
             raise AppError(
                 "forbidden",
-                detail="Recording an approval needs a person.",
+                detail="Recording an approval needs an identified principal.",
             )
         already = (
             db.query(CandidateApproval)
             .filter(
                 CandidateApproval.candidate_id == candidate.id,
-                CandidateApproval.approver_user_id == actor_user_id,
+                CandidateApproval.approver_user_id == approver_id,
             )
             .one_or_none()
         )
@@ -469,7 +542,7 @@ def approve_candidate(
         db.add(
             CandidateApproval(
                 group_id=group.id, candidate_id=candidate.id,
-                approver_user_id=actor_user_id, approver_label=actor_label,
+                approver_user_id=approver_id, approver_label=actor_label,
             )
         )
         db.flush()

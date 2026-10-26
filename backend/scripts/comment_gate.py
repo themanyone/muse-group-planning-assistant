@@ -76,6 +76,9 @@ FLOORS: dict[str, tuple[int, int, int]] = {
     "ai": (60, 95, 25),
     "crypto": (70, 0, 30),
     "internal": (60, 95, 25),
+    # B-204: measured at the MCP package's landing — 100/100/46,
+    # rounded down to the nearest five like every floor here.
+    "mcp": (100, 100, 45),
     "models": (95, 95, 40),
     "routers": (85, 60, 15),
     "schemas": (55, 70, 20),

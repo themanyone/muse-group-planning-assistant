@@ -25,6 +25,7 @@ from gpa.schemas.groups import (
     MembershipResponse,
     RoleChangeRequest,
     SeatCreateRequest,
+    SeatProfileUpdateRequest,
     SeatResponse,
 )
 from gpa.services import audit as audit_service
@@ -219,9 +220,11 @@ def create_seat(
     seat, full_key = group_service.create_seat(
         db, actor=actor, group=context.group, name=body.name,
         role=body.role, scopes=body.scopes,
+        description=body.description, avatar_url=body.avatar_url,
     )
     return SeatResponse(
         id=seat.id, group_id=seat.group_id, name=seat.name, role=seat.role,
+        description=seat.description, avatar_url=seat.avatar_url,
         key=full_key, key_prefix=full_key[:12],
     )
 
@@ -233,9 +236,56 @@ def list_seats(
 ):
     """List the group's seats (never their keys)."""
     return [
-        SeatResponse(id=s.id, group_id=s.group_id, name=s.name, role=s.role)
+        SeatResponse(
+            id=s.id, group_id=s.group_id, name=s.name, role=s.role,
+            description=s.description, avatar_url=s.avatar_url,
+        )
         for s in group_service.list_seats(db, context.group)
     ]
+
+
+@router.get("/{group_id}/seats/{seat_id}", response_model=SeatResponse)
+def read_seat(
+    seat_id: str,
+    context: GroupContext = Depends(require_group_role("member")),
+    db: Session = Depends(get_db),
+):
+    """One seat's profile (member+): seats are participants the
+    group can look up by name, like members (B-202)."""
+    seat = group_service.get_seat(db, context.group, seat_id)
+    return SeatResponse(
+        id=seat.id, group_id=seat.group_id, name=seat.name, role=seat.role,
+        description=seat.description, avatar_url=seat.avatar_url,
+    )
+
+
+@router.patch("/{group_id}/seats/{seat_id}", response_model=SeatResponse)
+def update_seat_profile(
+    seat_id: str,
+    body: SeatProfileUpdateRequest,
+    context: GroupContext = Depends(require_group_role("member")),
+    db: Session = Depends(get_db),
+):
+    """Edit a seat's profile (B-202): the seat ITSELF, under its
+    own key, or an admin person. Anyone else — another seat, a
+    member person — is refused: a profile is its owner's face.
+    Role and scopes are not editable here by anyone."""
+    principal = context.principal
+    is_self = principal.is_seat and principal.seat_id == seat_id
+    is_admin_person = (not principal.is_seat) and context.role in ("admin", "owner")
+    if not (is_self or is_admin_person):
+        raise AppError(
+            "forbidden",
+            detail="A seat's profile is edited by the seat itself or an admin.",
+        )
+    seat = group_service.update_seat_profile(
+        db, actor_label=principal.label, group=context.group,
+        seat_id=seat_id, changes=body.model_dump(exclude_unset=True),
+    )
+    return SeatResponse(
+        id=seat.id, group_id=seat.group_id, name=seat.name, role=seat.role,
+        description=seat.description, avatar_url=seat.avatar_url,
+    )
 
 
 # --- Candidates: the review-queue stub (B-018) -------------------------------
@@ -293,19 +343,21 @@ def approve_candidate(
     principal: Principal = Depends(require_scope("publish")),
     db: Session = Depends(get_db),
 ):
-    """Approve a candidate (a person with publish rights).
+    """Approve a candidate (any principal with publish rights).
 
     The door is membership: WHO may approve is the group's own
     review rule (settings pack, B-111), enforced inside the
-    service beside B-018's seat rule — a group may open
-    approval to members or hold it to admins, and may require
-    more than one distinct approver before a candidate is
-    decided; below the count this records the approval and the
-    candidate stays pending."""
+    service beside the one approval law (B-203) — a group may
+    open approval to members or hold it to admins, and may
+    require more than one distinct approver before a candidate
+    is decided; below the count this records the approval and
+    the candidate stays pending. A seat approves under exactly
+    these rules at its own role, or not at all."""
     candidate = group_service.approve_candidate(
         db, actor_label=principal.label, actor_is_seat=principal.is_seat,
         group=context.group, candidate_id=candidate_id,
         actor_user_id=principal.user_id, actor_role=context.role,
+        actor_seat_id=principal.seat_id,
     )
     return _candidate_response(db, candidate)
 

@@ -703,9 +703,12 @@ settings pack. All live and tested; contract is now
   `src/gpa/errors.py` (the registry is the contract).
 - Private groups return **404** (not 403) to non-members. Build
   your "group not found" state accordingly.
-- Agent seats can draft candidates and can **never** approve them —
-  the API returns 403 `seat_cannot_approve`. Approval UI is for
-  people (organiser+) only.
+- Agent seats stand under the one approval law exactly as a
+  person of the same role (B-203): a seat below the group's
+  review floor is refused with 403 `seat_cannot_approve`, while
+  an organiser seat holding the publish scope approves through
+  the same door, audited as itself. Approval UI serves any
+  principal at the floor — person or qualifying seat.
 
 ## Live sources and the bridge (Phase 11) — NEW, folds into ZIP-RC
 
@@ -773,10 +776,12 @@ and honestly about what is and is not live.
   `OPENAPI.json` are the seat's working surface (sources
   read, queue read/draft, events read, ask, summaries).
   Scopes, once: `read` sees, `draft` creates, `publish`
-  requests extractions/syncs, `admin` administers — and no
-  scope lets a seat approve; approval is a person's act, and
-  the API refuses a seat's approval with `403
-  seat_cannot_approve`. `examples/secretary_seat.py` is a
+  requests extractions/syncs, `admin` administers — and
+  approval follows the one law (B-203): publish scope alone
+  does not approve; the principal must also stand at the
+  group's review floor, and a seat below it is refused with
+  `403 seat_cannot_approve`, while an organiser seat holding
+  publish approves as itself. `examples/secretary_seat.py` is a
   complete worked seat to build against.
 - **Contract:** 174 paths / 204 schemas (was 160 / 189).
 

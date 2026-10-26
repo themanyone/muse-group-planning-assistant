@@ -192,8 +192,11 @@ class CandidateApproval(Base):
     candidate is decided. Each approver's act lands here first —
     the candidate stays pending until the required count of
     DISTINCT approvers is met, when the final approver's call runs
-    the ordinary approval (and mint) in its transaction. A seat
-    can never hold a row here: approval is a person's act (B-018).
+    the ordinary approval (and mint) in its transaction. Since
+    Phase 19 (B-203) a seat at the approver role holds a row
+    here too, keyed by its seat id in ``approver_user_id`` —
+    the one approval law counts distinct principals, not
+    distinct humans.
     """
 
     __tablename__ = "candidate_approvals"

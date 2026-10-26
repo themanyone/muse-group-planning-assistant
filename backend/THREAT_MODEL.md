@@ -51,9 +51,12 @@ ago, let *anyone* create pages about *anyone* — no permission
 step. Every abuse case below is checked against that shape of
 failure: **unauthenticated or unapproved content becoming
 public truth.** In this system it cannot happen: nothing is
-published except through the review queue, where a person
-approves (B-043), an agent seat is refused the approve door in
-the service itself (`seat_cannot_approve`, B-018), and the
+published except through the review queue, where an approver
+approves under the one approval law (B-043; B-203), an agent
+seat below the group's review floor is refused the approve
+door in the service itself (`seat_cannot_approve`, B-018 as
+restated by B-203) while an organiser seat holding publish
+approves through the same door, audited as itself, and the
 public surfaces serve only the public projection of published
 events for public-listed groups (B-059/B-135).
 

@@ -196,6 +196,13 @@ def _classify(dotted: str) -> tuple[str, str | None, str | None]:
         return "storage", "storage", stem
     if second == "internal":
         return "internal", "internal", stem
+    if second == "mcp":
+        # The MCP surface (B-204) is its own module: it may
+        # speak through the internal API (exempt, like every
+        # internal edge) and the foundation files, and its
+        # defining law — no service, router, or model imports —
+        # is pinned by the MCP core test's own import scan.
+        return "mcp", "mcp", stem
     return "root", None, second
 
 
@@ -211,6 +218,8 @@ def _importer_class(relpath: str) -> tuple[str, str | None]:
         return layer, "storage"
     if layer == "internal":
         return layer, "internal"
+    if layer == "mcp":
+        return layer, "mcp"
     return layer, stem
 
 

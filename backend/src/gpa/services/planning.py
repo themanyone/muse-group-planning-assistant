@@ -87,6 +87,26 @@ def member_label(db: Session, group: Group, user_id: str) -> tuple[User, str] | 
     return user, (user.name or user.email)
 
 
+def owner_display(db: Session, group: Group, principal_id: str) -> str | None:
+    """Display words for a task's owner (Phase 19, B-202): an
+    ACTIVE member person (their name, else their email) or an
+    agent SEAT of this group (its name) — the two kinds of
+    citizen a task can belong to, under D-35. ``owner_id`` on
+    the task holds the principal's id of either kind; this is
+    the one door that resolves it. Anyone else — a non-member,
+    another group's seat — resolves to None, and the callers
+    refuse the assignment in plain words."""
+    found = member_label(db, group, principal_id)
+    if found is not None:
+        return found[1]
+    from gpa.models.groups import AgentSeat
+
+    seat = db.get(AgentSeat, principal_id)
+    if seat is not None and seat.group_id == group.id:
+        return seat.name
+    return None
+
+
 def get_task(db: Session, group: Group, task_id: str) -> Task:
     """One task of this group, or 404 (another group's task is
     indistinguishable from a missing one)."""
@@ -178,8 +198,11 @@ def mint_task_from_candidate(
     owner_label = ""
     named_owner = draft.get("owner_id")
     if isinstance(named_owner, str) and named_owner:
-        found = member_label(db, group, named_owner)
-        if found is None:
+        # A reviewer naming a member OR a seat of this group
+        # (B-202: seats own tasks too) — the owner law itself is
+        # unchanged: the draft's words alone never assign.
+        owner_label = owner_display(db, group, named_owner) or ""
+        if not owner_label:
             raise AppError(
                 "validation_error",
                 detail=(
@@ -187,7 +210,6 @@ def mint_task_from_candidate(
                     "this group — edit the draft to fix the owner first."
                 ),
             )
-        _user, owner_label = found
         owner_id = named_owner
     task = Task(
         group_id=group.id,
@@ -252,13 +274,13 @@ def create_task(
             )
     owner_label = ""
     if owner_id is not None:
-        found = member_label(db, group, owner_id)
-        if found is None:
+        # A member person or a seat of this group (B-202).
+        owner_label = owner_display(db, group, owner_id) or ""
+        if not owner_label:
             raise AppError(
                 "validation_error",
                 detail="The owner must be a member of this group.",
             )
-        _user, owner_label = found
     task = Task(
         group_id=group.id,
         event_id=event_id,
@@ -358,13 +380,14 @@ def update_task(
             task.owner_id = None
             task.owner_label = ""
         else:
-            found = member_label(db, group, new_owner)
-            if found is None:
+            # A member person or a seat of this group (B-202).
+            resolved = owner_display(db, group, new_owner)
+            if resolved is None:
                 raise AppError(
                     "validation_error",
                     detail="The owner must be a member of this group.",
                 )
-            _user, task.owner_label = found
+            task.owner_label = resolved
             task.owner_id = new_owner
     if "status" in changes:
         new_status = changes["status"]

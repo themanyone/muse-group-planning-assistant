@@ -54,9 +54,11 @@ frontend works against the frozen contract in `OPENAPI.json`
 (187 paths, 217 schemas at this freeze) and the generated
 TypeScript types beside it. **Agent seats** are API-key
 principals with scopes (read / draft / publish / admin) — a
-seat may draft, and can *never* approve: that refusal is
-enforced in the service layer, not the route, and it holds
-even for a seat holding publish. **Public and embed surfaces**
+seat stands under the one approval law exactly as a person
+of its role (B-203): below the group's review floor its
+approval is refused in the service layer, not the route
+(`seat_cannot_approve`), while an organiser seat holding
+publish approves through the same door, audited as itself. **Public and embed surfaces**
 serve the B-059 public projection (member-only fields absent,
 not blanked) and answer CORS only for origins a group has
 registered.

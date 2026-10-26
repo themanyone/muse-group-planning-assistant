@@ -8373,8 +8373,20 @@
         "type": "object"
       },
       "SeatCreateRequest": {
-        "description": "Create an agent seat (B-018): a name, a role, and the scopes\nits key will carry. Approval is never among a seat's powers.",
+        "description": "Create an agent seat (B-018): a name, a role, and the scopes\nits key will carry. Phase 19 (B-202) adds the seat's profile \u2014\na description and an avatar URL \u2014 settable at creation and\neditable afterwards through the seat profile door.",
         "properties": {
+          "avatar_url": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Avatar Url",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
           "name": {
             "maxLength": 120,
             "minLength": 1,
@@ -8400,9 +8412,63 @@
         "title": "SeatCreateRequest",
         "type": "object"
       },
+      "SeatProfileUpdateRequest": {
+        "description": "Edit a seat's profile (B-202): its display name, its\ndescription, its avatar URL. Role and scopes are NOT profile \u2014\nthey are an admin's act at seat administration, never the\nseat's own edit.",
+        "properties": {
+          "avatar_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "SeatProfileUpdateRequest",
+        "type": "object"
+      },
       "SeatResponse": {
         "description": "A seat as listed. ``key`` appears only at creation.",
         "properties": {
+          "avatar_url": {
+            "default": "",
+            "title": "Avatar Url",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
           "group_id": {
             "title": "Group Id",
             "type": "string"
@@ -12416,7 +12482,7 @@
     },
     "/api/v1/groups/{group_id}/candidates/{candidate_id}/approve": {
       "post": {
-        "description": "Approve a candidate (a person with publish rights).\n\nThe door is membership: WHO may approve is the group's own\nreview rule (settings pack, B-111), enforced inside the\nservice beside B-018's seat rule \u2014 a group may open\napproval to members or hold it to admins, and may require\nmore than one distinct approver before a candidate is\ndecided; below the count this records the approval and the\ncandidate stays pending.",
+        "description": "Approve a candidate (any principal with publish rights).\n\nThe door is membership: WHO may approve is the group's own\nreview rule (settings pack, B-111), enforced inside the\nservice beside the one approval law (B-203) \u2014 a group may\nopen approval to members or hold it to admins, and may\nrequire more than one distinct approver before a candidate\nis decided; below the count this records the approval and\nthe candidate stays pending. A seat approves under exactly\nthese rules at its own role, or not at all.",
         "operationId": "approve_candidate_api_v1_groups__group_id__candidates__candidate_id__approve_post",
         "parameters": [
           {
@@ -19723,6 +19789,118 @@
           }
         },
         "summary": "Create Seat",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/seats/{seat_id}": {
+      "get": {
+        "description": "One seat's profile (member+): seats are participants the\ngroup can look up by name, like members (B-202).",
+        "operationId": "read_seat_api_v1_groups__group_id__seats__seat_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "seat_id",
+            "required": true,
+            "schema": {
+              "title": "Seat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Seat",
+        "tags": [
+          "groups"
+        ]
+      },
+      "patch": {
+        "description": "Edit a seat's profile (B-202): the seat ITSELF, under its\nown key, or an admin person. Anyone else \u2014 another seat, a\nmember person \u2014 is refused: a profile is its owner's face.\nRole and scopes are not editable here by anyone.",
+        "operationId": "update_seat_profile_api_v1_groups__group_id__seats__seat_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "seat_id",
+            "required": true,
+            "schema": {
+              "title": "Seat Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeatProfileUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Seat Profile",
         "tags": [
           "groups"
         ]

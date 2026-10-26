@@ -108,6 +108,34 @@ def _zip_info(name: str, mode: int, mtime: float) -> zipfile.ZipInfo:
     return info
 
 
+def _mcp_tool_manifest() -> tuple[list[dict], str]:
+    """The B-206 MCP tool catalogue for the signed manifest.
+
+    Tool descriptions are release facts: a swapped description
+    is a swapped instruction to every agent that reads it (tool
+    poisoning), so the train manifest carries every tool's
+    name, operation, scope, full description, and the
+    description's SHA-256, plus one digest over the whole list.
+    The entries are generated from the live registry in
+    ``gpa.mcp.tools`` — never hand-typed here — and a build
+    that cannot generate them refuses rather than ship a
+    manifest silent about its tools.
+    """
+    src = str(ROOT / "src")
+    if src not in sys.path:
+        sys.path.insert(0, src)
+    try:
+        from gpa.mcp.tools import manifest_digest, tool_manifest
+    except Exception as exc:  # a silent manifest is a refused build
+        raise SystemExit(
+            "Refusing to build: the MCP tool registry could not be "
+            f"generated ({exc}). A release manifest must carry its "
+            "tool descriptions (B-206)."
+        ) from exc
+    entries = tool_manifest()
+    return entries, manifest_digest(entries)
+
+
 def _write_sidecar(zip_path: Path) -> str:
     digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
     (zip_path.parent / f"{zip_path.name}.sha256").write_text(
@@ -197,6 +225,11 @@ def build_train(version: str, date: str, slice_end: str) -> None:
     # manifest inside the ZIP names the key's fingerprint, and the
     # detached signature over the finished ZIP is written after.
     private_key, ephemeral = release_signing.load_private_key(ROOT)
+    # B-206: the MCP tool descriptions ride the signed manifest
+    # (see _mcp_tool_manifest) — generated from the live tree
+    # being zipped, so the manifest describes THIS release's
+    # tools, and the .sig over the ZIP covers them.
+    mcp_tools, mcp_tools_digest = _mcp_tool_manifest()
     manifest = {
         "version": version,
         "date": date,
@@ -205,6 +238,8 @@ def build_train(version: str, date: str, slice_end: str) -> None:
         "ai_driver_modes": ["live", "fixture", "mock"],
         "known_limits": known_limits,
         "sbom": "sbom.spdx.json",
+        "mcp_tools": mcp_tools,
+        "mcp_tools_digest": mcp_tools_digest,
         "signing": {
             "algorithm": "Ed25519",
             "key_id": release_signing.key_fingerprint(private_key.public_key()),

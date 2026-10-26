@@ -9,7 +9,7 @@ told honestly, the Bruno walkthrough, and the mock-mode
 guide.*
 
 *Verified against the live tree at this slice: the contract
-is `OPENAPI.json` (201 paths, 229 schemas) with generated
+is `OPENAPI.json` (202 paths, 230 schemas) with generated
 TypeScript types in `frontend_types.ts`; the error registry
 is `src/gpa/errors.py` (B-004); the auth doors are
 `src/gpa/routers/auth.py` (B-011 → B-014, B-174); the stream
@@ -58,10 +58,13 @@ was refused `token_invalid` until it was fixed at the root.
 API keys travel in the **`X-API-Key`** header, never as a
 Bearer token. Session tokens travel as Bearer, never in
 `X-API-Key`. Scopes gate what a key may do; a seat's key can
-draft but can **never approve** — approval is refused
-in-service with `seat_cannot_approve` (403) even if the key
-holds the `publish` scope, because the law lives in the
-service, not in the scope check.
+draft, and stands under the one approval law exactly as a
+person of its role does (B-203): a seat below the group's
+review floor is refused in-service with
+`seat_cannot_approve` (403), a draft-scoped seat stops at
+`insufficient_scope`, and an organiser seat holding the
+`publish` scope approves through the same door — because
+the law lives in the service, not in the scope check.
 
 ## Auth flow 1 — password sign-in, with and without MFA
 
@@ -278,7 +281,7 @@ omission without them.
 | `token_reused` | 401 | Token already used; for refresh, the family is revoked — sign in again |
 | `forbidden` | 403 | This principal may not do that; hide or disable the act |
 | `insufficient_scope` | 403 | The API key lacks the needed scope; a person must use a stronger key or a session |
-| `seat_cannot_approve` | 403 | Seats draft, a person approves; route the draft to a person |
+| `seat_cannot_approve` | 403 | This seat is below the group's review floor; route the draft to an approver at the floor (person or organiser seat) |
 | `not_found` | 404 | Not found — private groups also answer 404, so 404 never proves non-existence |
 | `conflict` | 409 | Conflicts with current state; reload and reconcile |
 | `stale_version` | 409 | `If-Match` version is behind; reload, show the newer state, let the person re-apply |
@@ -292,6 +295,9 @@ omission without them.
 | `account_locked` | 423 | Progressive lockout after failed sign-ins; the detail names the wait |
 | `mfa_code_invalid` | 401 | The TOTP code did not match; the challenge survives a mistype — let them retry |
 | `password_too_weak` | 422 | Under 12 characters, breached/common, or the email name; explain all three rules |
+| `sampling_disabled` | 403 | MCP server-initiated sampling is switched off (it is off by default, B-217); only the operator can enable it |
+| `sampling_budget_exceeded` | 422 | The group's daily AI budget is spent, or its sampling calls for today are used up; sampling resumes at UTC midnight |
+| `consent_required` | 403 | A destructive or open-world MCP tool was called without the caller's explicit per-call consent (B-218); call again with `consent=true` to mean this specific call |
 | `recovery_code_invalid` | 401 | An operator recovery code is not valid; a frontend never sends these |
 | `uncommitted_writes` | 500 | The server caught its own handler answering with uncommitted writes and rolled back; report it |
 | `draft_conflict` | 409 | An autosave's `base_version` is stale; the answer carries both versions — show the conflict, keep both |

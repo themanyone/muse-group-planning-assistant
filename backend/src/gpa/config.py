@@ -127,6 +127,58 @@ class Settings(BaseSettings):
     # Replay window for signed internal messages (B-164).
     internal_replay_window_seconds: int = 300
 
+    # MCP server (B-204, Phase 19): the streamable-HTTP
+    # transport's bind address. The default is loopback — the
+    # remote road is served behind the deployment's proxy, and
+    # B-205's authentication lands before any wider exposure.
+    # The stdio transport ignores both values (its wire is the
+    # spawning process's own pipes).
+    mcp_http_host: str = "127.0.0.1"
+    mcp_http_port: int = 8765
+
+    # MCP authentication (B-205, Phase 19). Local stdio: an
+    # agent-seat API key presented by the spawning process —
+    # empty means the keyless local posture (the operator's own
+    # trusted process, B-204). Remote HTTP: OAuth 2.1 resource-
+    # server verification — the resource URL is the audience
+    # tokens must name (empty derives it from the bind address),
+    # the issuer URL names the external authorisation server in
+    # the protected-resource metadata, and the OAuth secret is
+    # the HS256 verification key (empty falls back to the app
+    # secret, the development posture). All environment-only.
+    mcp_seat_api_key: str = ""
+    mcp_resource_url: str = ""
+    mcp_oauth_issuer_url: str = ""
+    mcp_oauth_secret: str = ""
+
+    # MCP sampling policy (B-217, Phase 19). Server-initiated
+    # sampling — this server asking the CONNECTED CLIENT's model
+    # to generate text — is OFF by default, and this flag is the
+    # only way on: sampling spends the client operator's model
+    # budget on prompts this server chose, through a model this
+    # deployment does not control, so enabling it is an
+    # operator's deliberate act, never a default (the full
+    # reason is written in Doc 13). Where it IS enabled, two
+    # caps ride with it: the largest generation one call may
+    # request (tokens), and the most sampling calls one group
+    # may make per UTC day — the day cap is counted on B-047's
+    # AI usage ledger, and a group already at its daily AI
+    # budget cap may not sample at all (see gpa.mcp.sampling
+    # and the sampling.sample operation). Both caps are
+    # ceilings an operator may lower, never floors.
+    mcp_sampling_enabled: bool = False
+    mcp_sampling_max_tokens: int = 512
+    mcp_sampling_max_calls_per_day: int = 20
+
+    # MCP security hardening (B-218, Phase 19): the most MCP
+    # tool calls ONE principal (a seat, a person, the local
+    # operator) may make per minute at the gateway — a brake
+    # against a runaway agent loop, counted per principal in
+    # the server's memory (gpa.mcp.security). 600 is headroom
+    # for a busy legitimate agent; 0 disables the brake as an
+    # operator's deliberate posture, never a silent default.
+    mcp_rate_limit_per_minute: int = 600
+
     # Link ingest (B-029): how long a page fetch may take, and the
     # largest page body the archive will keep. The SSRF guards
     # themselves live in services/linkfetch.py and are not knobs —

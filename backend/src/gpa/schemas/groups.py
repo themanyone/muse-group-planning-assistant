@@ -95,11 +95,26 @@ class MembershipResponse(BaseModel):
 
 class SeatCreateRequest(BaseModel):
     """Create an agent seat (B-018): a name, a role, and the scopes
-    its key will carry. Approval is never among a seat's powers."""
+    its key will carry. Phase 19 (B-202) adds the seat's profile —
+    a description and an avatar URL — settable at creation and
+    editable afterwards through the seat profile door."""
 
     name: str = Field(min_length=1, max_length=120)
     role: str = Field(default="member")
     scopes: list[str] = Field(default_factory=lambda: ["read", "draft"])
+    description: str = Field(default="", max_length=2000)
+    avatar_url: str = Field(default="", max_length=500)
+
+
+class SeatProfileUpdateRequest(BaseModel):
+    """Edit a seat's profile (B-202): its display name, its
+    description, its avatar URL. Role and scopes are NOT profile —
+    they are an admin's act at seat administration, never the
+    seat's own edit."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+    avatar_url: str | None = Field(default=None, max_length=500)
 
 
 class SeatResponse(BaseModel):
@@ -109,6 +124,8 @@ class SeatResponse(BaseModel):
     group_id: str
     name: str
     role: str
+    description: str = ""
+    avatar_url: str = ""
     key: str | None = None
     key_prefix: str | None = None
 

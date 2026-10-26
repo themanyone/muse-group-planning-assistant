@@ -86,6 +86,30 @@ def budget_state(db: Session, group: Group, *, now: datetime | None = None) -> d
     }
 
 
+def count_operation_today(
+    db: Session, group_id: str, operation: str, *, now: datetime | None = None
+) -> int:
+    """How many ledger rows one operation has for a group today.
+
+    The day boundary is this module's own (UTC midnight, as
+    every budget here is reckoned). B-217's sampling day cap
+    counts its calls on this ledger through here, so the
+    count and the spend it stands beside share one table and
+    one definition of "today" — never a second counter kept
+    somewhere else that could drift from the ledger's truth.
+    """
+    start = _day_start(now or datetime.now(timezone.utc))
+    return (
+        db.query(AiUsage)
+        .filter(
+            AiUsage.group_id == group_id,
+            AiUsage.operation == operation,
+            AiUsage.created_at >= start,
+        )
+        .count()
+    )
+
+
 def next_budget_reset(now: datetime | None = None) -> datetime:
     """When a budget-deferred run should fire: the next UTC
     midnight — the moment the new day's budget opens."""

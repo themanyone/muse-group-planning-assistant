@@ -43,7 +43,7 @@ flowchart TB
     end
     MEMBER -->|"signs in, plans, reviews"| GPA
     ADMIN -->|"administers, exports, erases"| GPA
-    SEAT -->|"drafts and plans, never approves"| GPA
+    SEAT -->|"drafts, plans, approves at the floor (B-203)"| GPA
     GUEST -->|"answers an invite, reads a feed"| GPA
     PUBLIC -->|"reads the public projection only"| GPA
     GPA -->|"prompts through one adapter"| MODEL
@@ -62,8 +62,11 @@ their difference is role, not road — the same doors serve
 both, and the group door (`deps.py`, diagram 4) decides
 what each may do. An **agent seat** is an AI principal
 holding a scoped API key: it drafts and plans at its role
-and can never approve, a refusal enforced in the service
-layer. A **guest** holds only what a link carries — an
+and stands under the one approval law exactly as a person
+of that role does (B-203) — below the group's review floor
+its approval is refused in the service layer
+(`seat_cannot_approve`); at the floor, holding publish, it
+approves through the same door, audited as itself. A **guest** holds only what a link carries — an
 invite token or a calendar feed token, each shown once
 and kept hashed. A **public visitor** reaches only the
 public projection of a public-listed group, where

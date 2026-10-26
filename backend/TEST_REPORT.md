@@ -1051,3 +1051,29 @@ here and in the gate commit.
   Stated plainly rather than implied.
 - Contract: **201 paths / 229 schemas** (unchanged).
 - Progress: **200/350 slices, Phases 0–18 complete.**
+
+## Phase 19 addendum — B-201 API parity (2026-10-26)
+
+- API parity (B-201): 256 actions registered, 256 API routes live, 2 actions backed by a registered internal-API operation (B-162).
+- Parity check: PASS — every registered action has its API route and its internal operation. A deliberately UI-only fixture action fails the checker by name (pinned in `tests/test_parity.py`, 6 tests).
+- Pending surface, not yet built: mcp (B-204) — reported pending, never passed.
+- Pending surface, not yet built: terminal (B-221) — reported pending, never passed.
+- Regression batch at this slice (parity + architecture + comment gate + docs gate): 40 passed. Full suite NOT re-run at this slice; a full Phase 19 green is the B-220 gate's to prove.
+- Progress: 201/350 slices, Phase 19 in progress.
+
+## Phase 19 addendum — B-202/B-203 seat equality + one approval law (2026-10-26)
+
+- API parity: 258 actions registered, 258 API routes live, 2 actions backed by a registered internal-API operation (B-162). The two new actions are the seat profile doors (B-202).
+- Contract: **202 paths / 230 schemas** (was 201/229 — the seat profile read/update routes are the growth; regenerated OPENAPI.json + frontend_types.ts).
+- New suite `tests/test_seat_equality.py`: the B-022 role matrix's participation actions run against BOTH a person principal and a seat principal under one expectation table (40 matrix cases per kind), seat profile lifecycle, organiser-seat approval attribution, draft-scope door, distinct-approver counting with a seat as first approver, RSVP/poll/discussion/task-ownership/feed participation, and the standing person-only doors (seat creation, person invites) asserted as refusals.
+- SUPERSEDED at B-203, recorded per the house discipline: B-018's blanket seat approval ban. `tests/test_permissions.py::test_seat_can_draft_cannot_approve` now pins the surviving half (a member seat with publish still meets `seat_cannot_approve`); the organiser half is pinned in the new suite. The B-129 scope guide's publish wording is restated to match.
+- Regression batches at these slices, from their own logs: batch 1 (seat equality + permissions + agent pack + parity + settings pack) 104 passed; batch 2 (candidates + groups + tasks + polls + rsvps + discussion + calendar views + architecture + docs gate + Phase 18 gate + Phase 17 migrations) 87 passed + 1 failed — the Phase 18 gate's contract-size claim, fixed by restating docs/15 + README at 202/230 — re-run of the two gate files: 30 passed. Comment gate passes. Full suite NOT re-run at these slices; a full Phase 19 green is the B-220 gate's to prove.
+- Progress: 203/350 slices, Phase 19 in progress.
+
+## Phase 19 halt note — B-220 gate built, proof deferred (2026-10-26)
+
+- Slices B-204 → B-219 were built after the addendum above (MCP server core, auth, generated tool registry, group tools, planning tools, notifications, resources, subscriptions, prompts, elicitation bridge, sampling policy, security hardening, conformance + client pack), each passing its own acceptance tests and batches as built; the per-slice evidence lives in PROJECT_MEMORY_MAP.md.
+- B-220 (the Phase 19 parity gate) is BUILT: `tests/test_phase19_gate.py` passes standalone (3 passed, verified twice in throwaway copies of this tree), and the gate's docs restatements are in the tree (atlas regenerated, 429 files).
+- The gate's full-suite proof is NOT claimed. Three full-suite attempts each ended without a summary; their logs show a failure cluster that appears only in full-run order — the implicated files pass standalone (130/130 when run as a batch in a clean copy). Root cause not yet isolated: full-order pollution or environment starvation are the live candidates.
+- On 2026-10-26 Volmarr ordered the build HALTED here, pending the event's proper setup (Discord access and API keys, under Henry's setup as team lead). The full-suite proof, any root repair it implies, and the Phase 19 gate ZIP are deferred to the resumption, not waived.
+- Standing totals until then: last full-suite proof is the Phase 18 gate — 1,056 passed / 7 skipped / 0 failed on SQLite; PostgreSQL proof stands at the Phase 17 gate (1,013 on-engine). Progress: 220/350 slices built, Phases 0–18 gate-proven.

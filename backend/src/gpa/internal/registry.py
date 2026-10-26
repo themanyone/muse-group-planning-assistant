@@ -91,6 +91,64 @@ CALLER_GRANTS: dict[str, frozenset[str]] = {
     # directly; this grant exists so the operation is real and
     # exercised, not decorative.
     "core": frozenset({"events:publish"}),
+    # The MCP server process (B-204): the gateway identity.
+    # Its grants span the registered operations because a
+    # gateway's job is to carry an authorised principal's call
+    # to whichever operation the tool names — the per-principal
+    # authorisation (which seat, holding which scopes) is
+    # B-205's check at call time, layered over this door, and
+    # the approval law itself still lives in the operations'
+    # owning services, unchanged for MCP callers.
+    "mcp": frozenset(
+        {
+            "candidates:write",
+            "events:publish",
+            "notify:write",
+            "jobs:write",
+            "ai:submit",
+            "integrations:write",
+            # B-207: the groups/members/profile family's scopes —
+            # the gateway carries the family's reads and edits
+            # for an authorised principal, under the same
+            # per-principal check as every scope above.
+            "groups:read",
+            "groups:write",
+            "profile:read",
+            "profile:write",
+            # B-208: the review queue's scopes — its reads and
+            # its decision doors (approve / reject / edit).
+            "candidates:read",
+            "candidates:decide",
+            # B-209: events and the calendar — reads, the
+            # cancellation write, and the RSVP write
+            # (participation-grade at the credential mapping).
+            "events:read",
+            "events:write",
+            "rsvps:write",
+            # B-210: sources and extraction requests — reads,
+            # the filing writes, and the request scope
+            # (publish-grade at the credential mapping).
+            "sources:read",
+            "sources:write",
+            "extraction:request",
+            # B-211: planning — the minted things' reads and
+            # their upkeep writes (draft-grade at the mapping).
+            "planning:read",
+            "planning:write",
+            # B-212: announcements, inboxes/preferences, and
+            # digests — reads, plus the two publish-grade
+            # writes (announcing, composing the digest).
+            "announcements:read",
+            "announcements:write",
+            "notifications:read",
+            "notifications:write",
+            # B-217: the sampling authorisation scope — the
+            # gateway carries the policy/record call for an
+            # authorised (publish-grade) principal, under the
+            # same per-principal check as every scope above.
+            "sampling:request",
+        }
+    ),
 }
 
 

@@ -134,6 +134,13 @@ class AgentSeat(Base):
     role: Mapped[str] = mapped_column(String(16), default="member")
     created_by_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    # The seat's own profile (Phase 19, B-202): a seat is a
+    # participant with a public face, like a person — a
+    # description of what it does for the group and an avatar
+    # URL it (or an admin) maintains. Both start empty; an
+    # undescribed seat is visible as such, never dressed up.
+    description: Mapped[str] = mapped_column(Text, default="")
+    avatar_url: Mapped[str] = mapped_column(String(500), default="")
 
 
 class Candidate(Base):

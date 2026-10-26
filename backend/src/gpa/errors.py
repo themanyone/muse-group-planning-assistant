@@ -28,7 +28,7 @@ ERROR_CODES: dict[str, tuple[int, str]] = {
     "token_reused": (401, "That token was already used"),
     "forbidden": (403, "You are not allowed to do that"),
     "insufficient_scope": (403, "This key does not have the needed scope"),
-    "seat_cannot_approve": (403, "Agent seats can draft, but a person must approve"),
+    "seat_cannot_approve": (403, "This seat's role cannot approve — approval follows the one approval law for every principal (B-203)"),
     "not_found": (404, "That could not be found"),
     "conflict": (409, "That conflicts with the current state"),
     "stale_version": (409, "That version is out of date"),
@@ -55,6 +55,16 @@ ERROR_CODES: dict[str, tuple[int, str]] = {
     "internal_bad_signature": (401, "That internal message's signature did not verify"),
     "internal_replayed": (401, "That internal message was already seen"),
     "internal_bad_key": (500, "The internal key configuration is invalid"),
+    # MCP sampling policy (Phase 19, B-217): sampling is off by
+    # default, and a group at its daily AI budget cap may not
+    # commission more model work through the client's model.
+    "sampling_disabled": (403, "Server-initiated sampling is switched off"),
+    "sampling_budget_exceeded": (422, "That would exceed the sampling budget"),
+    # MCP security hardening (Phase 19, B-218): a destructive
+    # or open-world tool call that arrives without the
+    # caller's explicit per-call consent is refused at the
+    # gateway, before anything is written or spent.
+    "consent_required": (403, "That tool needs the caller's explicit consent for this call"),
     # Advanced account security (Phase 17, B-174).
     "account_locked": (423, "This account is temporarily locked"),
     "mfa_code_invalid": (401, "That authentication code did not match"),

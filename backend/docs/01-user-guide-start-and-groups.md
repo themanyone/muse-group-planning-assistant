@@ -164,10 +164,12 @@ ladder; each rung includes everything below it.
 
 An **agent seat** is not a sixth role: a seat is an AI
 participant holding one of these same roles, named by its seat
-label in the audit trail, and it can **never approve** — a seat
-holding an organiser role may draft and publish, but the
-approval act itself is refused to it in the service, not just
-hidden on a screen.
+label in the audit trail, and it stands under the one approval
+law exactly as a person of that role does (B-203): a seat
+below the group's review floor is refused approval in the
+service (`seat_cannot_approve`), not just hidden on a screen,
+while a seat at the floor holding the publish scope approves
+through the same door, audited as itself.
 
 *Changing roles:* only an owner may move someone into or out of
 the owner and admin rungs; other role changes follow the same

@@ -628,7 +628,7 @@ def test_api_frontend_guide_covers_its_roadmap_topics():
         "bruno", "b-010 skeleton",
         "mock", "fixture", "gpa_ai_driver", "demo-password-123",
         "etag", "if-match", "retry-after", "raw request bodies",
-        "201 paths, 229 schemas", "integer cents",
+        "202 paths, 230 schemas", "integer cents",
     ):
         assert topic in text, f"B-196 chapter is missing its topic: {topic}"
     # Every code in the live registry appears in the table.

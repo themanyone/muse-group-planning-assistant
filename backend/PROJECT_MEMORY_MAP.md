@@ -2112,8 +2112,1044 @@ parses the model so it cannot drift from the code.
   train point is the roadmap's). **Phase 18 COMPLETE:
   200/350. Next: Phase 19, B-201.**
 
-### Later phases: NOT STARTED (per roadmap order)
-Phase 16 begins at B-157.
+### Phase 19 — Equal principals, API parity, MCP (B-201 → B-220): IN PROGRESS
+- **B-201 API parity audit + checker** ✅ (timer crew,
+  2026-10-26): `src/gpa/services/parity.py` (module
+  `platform` in the B-161 map) — a machine-readable register
+  of every user-facing action: 256 entries, one per live API
+  operation, each naming its API route (method + path) and
+  the internal operation behind it (the route handler,
+  resolved by dotted path at check time). `check_parity`
+  fails BY NAME on a missing route, a missing/mismatched
+  handler, or a claimed B-162 operation that is not
+  registered — and in reverse on any live route with no
+  register entry, so the register and the app cannot drift.
+  Acceptance pinned in `tests/test_parity.py` (6 tests): a
+  deliberately UI-only fixture action fails the checker by
+  name on both legs. `scripts/parity_report.py` prints the
+  report for TEST_REPORT and exits 1 on failure. HONEST
+  BOUNDARIES, in the module header and the report itself:
+  only 2 actions are backed by a registered B-162 bus
+  operation (`candidates.create` on candidate creation,
+  `events.publish` on event publish) — the rest are
+  module-internal service operations behind their handlers
+  and are NOT claimed to travel the encrypted bus; MCP
+  (B-204) and terminal (B-221) coverage is zero at this
+  slice and is reported as pending surfaces, never passed —
+  B-206/B-222 extend this same register to them. One real
+  bug found by the slice's own cold run: registration on
+  the B-162 bus is lazy, so the checker now calls
+  `handlers.register_all()` itself before verifying bus
+  claims (the standalone script failed before that fix,
+  the in-suite test had passed only because earlier tests
+  had registered them). Atlas regenerated (395 files);
+  B-198 inventory gained the parity test. Regression batch
+  (parity + architecture + comment gate + docs gate) 40
+  passed. Full suite NOT re-run at this slice — a full
+  Phase 19 green is the B-220 gate's to prove (Phase 18
+  precedent). Contract unchanged: 201 paths / 229 schemas.
+  No ZIP at this slice. Progress: **201/350. Next: B-202.**
+- **B-202 agent-seat equality pack** ✅ (timer crew,
+  2026-10-26): seats stand as full participants at their
+  role. PROFILE: `AgentSeat` gained `description` +
+  `avatar_url` (migration 0022, guarded in the house style);
+  settable at creation, readable by members
+  (`GET …/seats/{seat_id}`, member+), editable by the seat
+  ITSELF under its own key or by an admin person
+  (`PATCH …/seats/{seat_id}`) — anyone else 403, and role /
+  scopes are never profile. PARTICIPATION (already seat-
+  shaped since B-061/B-084/B-087, now proven end to end in
+  one suite): RSVP in the seat's name, poll vote, discussion
+  post (`author_label = seat:<id>`), calendar feed issue
+  (organiser seat). TASK OWNERSHIP was the real gap:
+  `planning.owner_display` is now the one owner-resolution
+  door — an active member person OR a seat of this group —
+  used by direct create, PATCH assignment, and the approval
+  mint (a reviewer naming a seat in an edited draft assigns
+  it; the draft's own words still never assign — the owner
+  law is unchanged). ATTRIBUTION: every seat act lands in
+  audit and projections under `seat:<id>`, never its
+  creator's (profile edits included). ACCEPTANCE:
+  `tests/test_seat_equality.py` runs the B-022 matrix's
+  participation actions (read_group / list_members /
+  create_candidate / approve_candidate) against BOTH a
+  person and a seat principal under ONE expectation table —
+  40 cases per kind, identical outcomes. STANDING PERSON-
+  ONLY DOORS, asserted as refusals not parity failures (the
+  docs-set law, Doc 02 A.5): a seat creating seats, and a
+  seat inviting a person (account acts, not participation);
+  announcements (B-106) and live-chat grants (B-032) keep
+  their person rules likewise. Parity register grew to 258
+  actions (the two seat-profile doors); contract
+  regenerated: **202 paths / 230 schemas**. Next: B-203.
+- **B-203 the one approval law, restated for agents** ✅
+  (timer crew, 2026-10-26, same commit as B-202 — the two
+  share the seat doors): **B-018's blanket seat ban is
+  SUPERSEDED**, by the roadmap's own Phase 19 text and the
+  docs set (Doc 12 FAQ, Doc 13 §queue): equality is of
+  standing, not of bypass. `groups.approve_candidate` now
+  refuses a seat ONLY where a person would also fail: a seat
+  below the group's `review_min_role` meets
+  `seat_cannot_approve` (kept as the seat form of that
+  refusal, with the reason in the detail); a draft-scoped
+  seat stops at the door's publish-scope check with
+  `insufficient_scope`, exactly like a person's draft key;
+  an organiser seat holding publish approves through this
+  same operation, audited as the seat, `approved_by =
+  seat:<id>`. Multi-approver counting (B-111) counts
+  DISTINCT PRINCIPALS: `CandidateApproval` rows key a seat
+  by its seat id (the column never had an FK — the label
+  beside it says which kind acted); a seat's repeat is the
+  same 409 a person's repeat is. No agent-only override
+  exists anywhere: grep finds no second approval door.
+  Superseded assertions updated with the phase (the house
+  discipline): `test_permissions.test_seat_can_draft_cannot_approve`
+  now pins the surviving half (member seat + publish →
+  seat_cannot_approve); the B-129 scope guide's publish
+  wording is restated; the secretary example (a MEMBER seat)
+  passes unchanged. Papers that still state the old law in
+  absolute words — docs/ chapters from Phase 18 and
+  THREAT_MODEL.md's seat row — are NOT silently rewritten
+  here; their restatement belongs to the B-220 gate's docs
+  pass, and the discrepancy is recorded here so it is not
+  lost. Regression, from the runs' own logs: batch 1 (seat
+  equality + permissions + agent pack + parity + settings
+  pack) **104 passed**; batch 2 (candidates + groups +
+  tasks + polls + rsvps + discussion + calendar + archi-
+  tecture + docs gate + Phase 18 gate + Phase 17 migra-
+  tions) 87 passed + 1 failed — the Phase 18 gate's
+  contract-size claim (201/229), fixed by restating the
+  CURRENT contract in docs/15 + README (in place) at
+  202/230, gate re-run **30 passed**; comment gate passes.
+  Full suite NOT re-run — a full Phase 19 green is the
+  B-220 gate's to prove. Progress: **203/350. Next: B-204
+  (MCP server core).**
+- **B-204 MCP server core** ✅ (timer crew, 2026-10-26):
+  new package `src/gpa/mcp/` as its own module (D-30) on the
+  **official MCP Python SDK** (`mcp>=1.25,<2`, locked at
+  1.30.0; the SDK is a runtime dependency and the
+  `gpa-mcp` script is the serving entry). **The bridge law**:
+  `mcp/bridge.py` is the package's ONLY backend door — an
+  `InternalClient` speaking as caller **`mcp`** (a new
+  registry grant spanning the seven operations' scopes, the
+  gateway posture B-205 layers per-principal authorisation
+  over) with the B-165 audit hook installed and a distinct
+  B-164 identity (derived key id proven ≠ core's); every call
+  is one transaction on the wire door's law (commit on
+  success, roll back on refusal). An AST import scan in the
+  acceptance suite pins the package to the law: no
+  `gpa.services` / `gpa.routers` / `gpa.models` /
+  `gpa.schemas` import anywhere in it. **Transports**: one
+  `FastMCP` server object served over **stdio** and
+  **streamable HTTP** (`gpa-mcp --transport …`, loopback
+  8765 by default via `GPA_MCP_HTTP_*`); protocol-version
+  negotiation is the SDK handshake and
+  `supported_protocol_versions()` reads the SDK's own table
+  (2024-11-05 → 2025-11-25). **Core tools** (the catalogue
+  grows B-206 → B-212): `gpa_server_info`,
+  `gpa_list_internal_operations`, plus two real domain tools
+  travelling the whole road — `gpa_create_candidate_draft`
+  (→ `candidates.create`) and `gpa_publish_event`
+  (→ `events.publish`); refusals surface as MCP tool errors
+  leading with the backend problem code. **Structured
+  logging** (`mcp/structured.py`): JSON lines on **stderr**
+  only (stdout is the stdio wire), an allow-list of flat call
+  facts — a payload/secret-shaped field has no road in,
+  proven by a marker test. **Acceptance**
+  (`tests/test_mcp_core.py`, 8 passed): bridge identity +
+  grants, committed-and-audited draft (fresh-session row;
+  `module:mcp` line carries the key id, the draft title
+  appears nowhere in it), the import scan, the log-redaction
+  markers, and BOTH transports driven by the official SDK
+  client as real subprocesses — negotiate, list, call; the
+  stdio run drafts a candidate whose row is read back.
+  Sandbox fact the HTTP test records: this VM's proxy env
+  (bracketed no-proxy entries) breaks httpx's proxy parsing,
+  so the loopback wire strips `*_PROXY` on both ends.
+  Gates: comment gate gained the `mcp` floor measured at
+  landing (100/100/45, zero gaps); the regression batch
+  (architecture + comment gate + parity + internal api /
+  identity / audit + platform + quality) is **46 passed**
+  from its own log, and ruff E9+F is clean. A wider adjacent
+  batch (seat equality + internal transport / profiles) ran
+  49 tests with no failure before this run's 300 s batch
+  timeout cut it — recorded as a partial, not a green; the
+  B-220 gate's full suite is the proof that closes it.
+  Atlas + B-198 inventory extended for the new files.
+  **Honest boundary**: authentication is B-205 — this core
+  claims no auth story; stdio inherits the spawning
+  process's trust and the HTTP transport must not be exposed
+  beyond loopback/proxy until B-205 lands (stated in the
+  server module's header). Contract unchanged: **202 paths
+  / 230 schemas**. Full suite NOT re-run — a full Phase 19
+  green is the B-220 gate's to prove.
+  No ZIP at this slice. Progress: **204/350. Next: B-205
+  (MCP authentication + authorisation).**
+- **B-205 MCP authentication + authorisation** ✅ (timer crew,
+  2026-10-26): new `src/gpa/mcp/auth.py` — two roads, one law.
+  Local: an agent-seat API key (`GPA_MCP_SEAT_API_KEY`)
+  resolved by one parameterised SQL read through the bridge's
+  session (no service/model import — the B-204 boundary holds;
+  a person's key never resolves as a seat key), re-resolved on
+  EVERY tool call via `seat_key_provider`, so revocation lands
+  on the next call (proven by test). Remote: OAuth 2.1
+  resource-server profile — hand-rolled HS256 verification
+  (signature → expiry → audience → scope vocabulary, in that
+  order) against `GPA_MCP_OAUTH_SECRET` (app-secret fallback,
+  the house development posture); audience is the resource URL
+  (`GPA_MCP_RESOURCE_URL` or derived from the bind address);
+  the SDK `TokenVerifier` seam + `AuthSettings`
+  (validate_token_resource=True) guard the streamable-HTTP app
+  and `gpa-mcp --transport streamable-http` by construction —
+  the B-204 HTTP test was updated as superseded to present a
+  bearer token. Every tool call re-checks scope at call time
+  in `build_server`'s guard (explicit provider → SDK-verified
+  token claims → keyless LOCAL_PRINCIPAL, named not implicit);
+  `TOOL_SCOPES` states each core tool's credential scope and
+  `EXTERNAL_TO_INTERNAL` the one mapping table onto B-162
+  internal scopes (read→∅, draft→candidates:write,
+  publish→+events:publish, admin→all six). Acceptance errors
+  are the registry's own: expired `token_expired`,
+  wrong-audience/bad-signature/unknown-scope `token_invalid`,
+  under-scoped `insufficient_scope` (tool error, code leading),
+  unresolvable key `not_authenticated`. New settings
+  `mcp_seat_api_key` / `mcp_resource_url` /
+  `mcp_oauth_issuer_url` / `mcp_oauth_secret`. Tests:
+  tests/test_mcp_auth.py **9 passed** (the three acceptance
+  failures, verifier seam, seat-key resolve + revocation,
+  person-key refusal, call-time re-check on a live server);
+  auth+core batch **17 passed**; regression batch (parity +
+  architecture + internal + seat equality + docs gate) 111
+  passed with the comment gate first failing on mcp density
+  43%→ fixed by documentation to 45.2% (comment+docs gates
+  then 31 passed). Atlas regenerated (B-205 files), B-198
+  inventory row added. **Honest boundary**: token ISSUANCE is
+  an external authorisation server's job — `issue_oauth_token`
+  is a test/dev stand-in, never called by the serving path;
+  HS256 is the verified profile (an AS using RS256 would need
+  a JWKS verifier, a later hardening, not claimed here).
+  Contract unchanged: **202 paths / 230 schemas**. Full suite
+  NOT re-run — a full Phase 19 green is the B-220 gate's to
+  prove. No ZIP at this slice. Progress: **205/350. Next:
+  B-206 (tool registry from one source of truth).**
+- **B-206 tool registry from one source of truth** ✅ (timer
+  crew, 2026-10-26): new `src/gpa/mcp/tools.py` — the catalogue
+  is GENERATED from the internal operation registry (B-162,
+  handlers registered first) plus a curated annotation layer
+  (operation → tool name / credential scope / served
+  description, the only hand-written part, annotation never
+  capability). `ToolSpec` (operation | meta kinds; the two
+  meta tools declared with operation=None), `check_tool_registry`
+  (coverage both directions by name, uniqueness, meta honesty,
+  per-tool scope-mapping through B-205's EXTERNAL_TO_INTERNAL,
+  enforcement-table agreement, and a served-surface leg against
+  a built server's live list). The server now registers NINE
+  tools: B-204's typed core pair + meta pair take their served
+  descriptions from their specs, and the five remaining
+  operations gained generated typed tools
+  (gpa_request_notification / gpa_notify_rsvp_promotion /
+  gpa_enqueue_job / gpa_submit_ai_job /
+  gpa_emit_integration_event — all "admin": their internal
+  scopes map only from admin, enforced by the mapping leg);
+  `TOOL_SCOPES` in auth.py is the enforcement copy and the
+  checker fails by name if it disagrees with the registry.
+  The B-201 parity checker gained its MCP leg
+  (`check_mcp_parity`, prefixed `mcp:`, run by check_parity on
+  the default register) and its report counts the MCP surface
+  covered (9 tools / 7 operations); PENDING_SURFACES is now
+  only the terminal (B-221) — test_parity's pending-line
+  assertion superseded accordingly, as were test_mcp_core's
+  CORE_TOOLS set and test_mcp_auth's scope set. **Tool
+  poisoning defence**: `tool_manifest()` emits every tool's
+  description + its SHA-256 + one whole-list digest;
+  make_release_zip stamps both into the SIGNED train
+  release-manifest, and release_signing.verify_release now
+  recomputes them — a swapped description refuses its own
+  release's verification. Tests: tests/test_mcp_registry.py
+  **7 passed** (totality, both-direction failures by name,
+  scope-table + mapping drift, served == registry incl.
+  descriptions byte-for-byte, manifest digest tripwire,
+  generated job tools end-to-end incl. the AI door refusing a
+  non-AI kind); registry+parity batch 13 passed; auth+core 17
+  passed; gates batch (comment 45.1% mcp density after
+  documentation, docs, architecture, signed releases,
+  release-zip) + registry/parity re-run 55 passed; ruff clean
+  on all touched files except the pre-existing F841 in
+  tests/test_mcp_core.py (B-204 code, noted at B-205, left
+  as found). Atlas regenerated (406 files), B-198
+  inventory row added. Contract unchanged: **202 paths / 230
+  schemas**. Full suite NOT re-run — a full Phase 19 green is
+  the B-220 gate's to prove. No ZIP at this slice (the next
+  train ZIP carries the tool manifest by construction).
+  Progress: **206/350. Next: B-207 (MCP tools — groups,
+  members, profile).**
+- **B-207 MCP tools — groups, members, profile** ✅ (timer
+  crew, 2026-10-26): the first domain family on the B-206
+  generated catalogue. Five new internal operations registered
+  in `gpa.internal.handlers` (the composition root — the MCP
+  package still imports no service/router/model, the B-204
+  import scan passes unchanged): `groups.get` +
+  `groups.list_members` (`groups:read`), `groups.update`
+  (`groups:write`), `profile.get` (`profile:read`),
+  `profile.update` (`profile:write`) — the registry's first
+  READ scopes, granted to the `mcp` caller beside the six
+  write scopes. The roster is ONE answer with both principal
+  kinds labelled as themselves (persons by membership —
+  role + invite status; seats by seat row — role + B-202
+  profile). The edits are closed vocabularies at the
+  operation door: group settings carry only the five plain
+  fields (name, description, visibility, home_timezone,
+  default_place) and a profile carries only its kind's set
+  (person: name/timezone/locale; seat: name/description/
+  avatar_url) — an out-of-family field is refused BY NAME as
+  `internal_bad_payload`, a profile payload naming both
+  principals (or neither) likewise. Both edits delegate to
+  the owning services (groups.update_group /
+  groups.update_seat_profile / identity.update_profile), are
+  audited under the payload's actor label (a seat's face is
+  the seat's act, B-202), and commit on their services'
+  discipline. B-205's mapping widened honestly with the new
+  scopes: read → {groups:read, profile:read} (before B-207 a
+  read credential could carry NO operation), draft adds
+  profile:write, publish keeps its cumulative shape, admin =
+  all ten; `groups:write` maps only from admin, so
+  `gpa_update_group` is admin-scoped while `gpa_update_profile`
+  is draft-scoped (a seat's default read+draft key maintains
+  its own face — the least-scope judgement, recorded in
+  tools.py beside the annotations). The server serves 14
+  tools; the five typed family tools follow the B-206 thin
+  shape (presence-built payloads, registry descriptions).
+  Superseded assertions updated in place (core tool set,
+  bridge operations/grants, operations_count 7→12, registry
+  counts 7→12 operations / 9→14 manifest entries, auth scope
+  set, parity counts 9/7→14/12, parity.py's bus-backed note).
+  Tests: tests/test_mcp_groups.py **7 passed** (group read +
+  not_found, one-roster persons+seats, settings edit
+  committed + visibility validation, person and seat profiles
+  read/edited — seat in another group is not_found, the three
+  closed-vocabulary refusals by name, call-time scope
+  re-check across the family's read/draft/admin rungs);
+  groups+registry+auth+parity batch **29 passed**; core +
+  internal (api/audit/identity/profiles/transport) **44
+  passed**; gates batch (comment — mcp density repaired to
+  45.1% by documentation, as at B-205 — docs, architecture,
+  signed releases, release-zip, registry, parity) **55
+  passed**; a wider batch (seat equality + groups + member
+  io + gates) ran 98 passed with only the three then-stale
+  gate assertions failing, each fixed at its root and
+  re-run green. Ruff E9+F clean on every touched file except
+  the pre-existing F841 in tests/test_mcp_core.py (B-204
+  code, noted at B-205/B-206, left as found). Atlas
+  regenerated (407 files), B-198 inventory row added.
+  Contract unchanged: **202 paths / 230 schemas** (OpenAPI
+  snapshot green). Full suite NOT re-run — a full Phase 19
+  green is the B-220 gate's to prove. No ZIP at this slice.
+  Progress: **207/350. Next: B-208 (MCP tools — candidates
+  and the review queue).**
+- **B-208 MCP tools — candidates and the review queue** ✅
+  (timer crew, 2026-10-26): the second domain family. Five
+  new internal operations: `candidates.list` +
+  `candidates.get` (`candidates:read` — the queue's rows with
+  its triage filters, and one candidate in full: draft,
+  flags, per-field provenance, and B-111 approval progress
+  recorded/required) and the three decision doors
+  `candidates.approve` (owner groups) + `candidates.reject`
+  + `candidates.edit` (owner extraction), all under one new
+  internal scope `candidates:decide`. **The load-bearing
+  placement**: `candidates:decide` maps ONLY from the
+  publish credential rung (and admin) in EXTERNAL_TO_INTERNAL
+  — a seat's default read+draft key is structurally unable
+  to decide over this surface, exactly as at the HTTP doors,
+  and the sentence saying so is written in auth.py where a
+  reviewer widening the table must read it. Approval travels
+  `groups.approve_candidate` itself: the one approval law
+  (B-203) — review_min_role floor, distinct-approver
+  counting, the mint — applies inside the service, so a
+  below-count approval over MCP is RECORDED (row stays
+  pending) and a deciding one mints, identically to HTTP;
+  the approve payload carries the approver's facts (label,
+  role, seat/user id) as the HTTP principal does. Reject and
+  edit delegate to the candidates service (row stays on
+  reject; edit marks edited and stays undecided). Merging
+  and extraction requests are deliberately NOT in this
+  family (recorded in server.py: merge weighs provenance
+  side by side at the human queue; extraction requests
+  belong to the sources family). The server serves 19
+  tools. Superseded assertions updated in place (core tool
+  set + operations 12→17 + grants, registry counts, auth
+  scope set, parity 14/12→19/17 + its bus-backed note).
+  Tests: tests/test_mcp_candidates.py **5 passed** (list +
+  filter + full read with honest empty provenance, owner
+  approval minting a decision, the seat law over the bus —
+  member seat `seat_cannot_approve`, organiser seat approves
+  as itself — edit-then-reject with the second decision a
+  conflict, and all three decision tools refusing a
+  read+draft principal at the guard); the family batch
+  (candidates + groups + registry + auth + parity +
+  candidates API + seat equality) **91 passed**; core +
+  internal batch **44 passed**; gates batch (comment — mcp
+  density repaired to 45.0% by documentation — docs,
+  architecture, signed releases, release-zip, registry,
+  parity, OpenAPI snapshot) **61 passed**. Ruff E9+F clean
+  on every touched file except the pre-existing F841 in
+  tests/test_mcp_core.py (left as found, as before). Atlas
+  regenerated (408 files), B-198 inventory row added.
+  Contract unchanged: **202 paths / 230 schemas**. Full
+  suite NOT re-run — a full Phase 19 green is the B-220
+  gate's to prove. No ZIP at this slice. Progress:
+  **208/350. Next: B-209 (MCP tools — events, RSVPs, and
+  the calendar).**
+- **B-209 MCP tools — events, RSVPs, and the calendar** ✅
+  (timer crew, 2026-10-26): the third domain family. Six new
+  internal operations (owner events): `events.list` +
+  `events.get` (`events:read`) carrying the viewer's ROLE
+  and delegating to the service's visible forms, so the
+  B-049 bright line holds over this surface exactly — a
+  draft in an organiser's list, absent from a member's, and
+  not_found (never redacted) at the single read;
+  `rsvps.list` (`events:read`, answers + the summary
+  counts); `calendar.agenda` (`events:read`, occurrence
+  expansion with the opaque cursor carried through; window
+  moments converted at the operation to the store's
+  naive-UTC convention, the calendar door's own conversion);
+  `rsvps.set` (`rsvps:write` → **draft** rung: answering is
+  participation, the HTTP door's scope, so a seat's default
+  key can answer for its seat; the service's upsert +
+  waitlist rebalance + promotion notices ride along); and
+  `events.cancel` (`events:write` → **publish** rung),
+  doubly gated as at its HTTP door — publish credential at
+  the guard AND the organiser role stated in the operation
+  itself (the service states no role law; the one handler-
+  side role law in the registry, recorded in its family
+  note). Event editing is deliberately out (an ETag
+  conversation that deserves its own surface; the reads
+  carry `version` as honest ground for it). The server
+  serves 25 tools. Superseded assertions updated in place
+  (operations 17→23, parity 19/17→25/23, grants, auth scope
+  set, parity bus note). Two build faults were caught by
+  the family's own tests and fixed at root before landing:
+  the first tool draft used a non-existent bridge call
+  shape instead of the house `_call` form, and the agenda
+  window first travelled offset-aware into a naive-UTC
+  store. Tests: tests/test_mcp_events.py **5 passed**
+  (bright line in list + single read, seat RSVP set/list
+  with summary, cancel's two gates + stays-visible +
+  conflict + cancelled refuses answers, agenda window
+  in/out, call-time scopes incl. draft-can-answer /
+  draft-cannot-cancel); family batch (the three MCP
+  families + registry + auth + parity + events/RSVPs/
+  calendar APIs) **60 passed**; core + internal batch
+  **44 passed**; gates batch (comment — mcp density
+  repaired to 45.0% by documentation — docs, architecture,
+  signed releases, release-zip, registry, parity, OpenAPI
+  snapshot) + the family/core suites **69 passed** in the
+  final combined run. Ruff E9+F clean on every touched
+  file except the pre-existing F841 in
+  tests/test_mcp_core.py (left as found, as before). Atlas
+  regenerated (409 files), B-198 inventory row added.
+  Contract unchanged: **202 paths / 230 schemas**. Full
+  suite NOT re-run — a full Phase 19 green is the B-220
+  gate's to prove. No ZIP at this slice. Progress:
+  **209/350. Next: B-210 (MCP tools — sources and
+  extraction requests).**
+- **B-210 MCP tools — sources and extraction requests** ✅
+  (timer crew, 2026-10-26): the fourth domain family. Five
+  new internal operations (owner extraction): `sources.list`
+  + `sources.get` (`sources:read` → the read rung; metadata
+  + chunk counts for the list — no chunk opened — and the
+  full read opening chunks through the sources service's
+  one funnel, sealed at rest B-167, in position order);
+  `sources.create` + `sources.append` (`sources:write` →
+  **draft**: filing material is a member act at its door;
+  the create carries the permission record — granted_by =
+  the actor, granted_scope verbatim on the row — and append
+  continues the one true order, the operation committing
+  since the service's HTTP callers own their transactions);
+  and `extraction.request` (`extraction:request` →
+  **publish** rung + the organiser role law stated in the
+  operation, as at its door): it QUEUES the durable job
+  through the extraction service and returns its id — the
+  run is the worker's, and the family's tests assert the
+  queue is still empty after a request, so the
+  queued-vs-done distinction is pinned, not just described.
+  Source deletion is deliberately out of family (tombstone
+  law B-080 stays at the human doors; no agent surface
+  carries erasure first). The server serves 30 tools.
+  Superseded assertions updated in place (operations
+  23→28, parity 25/23→30/28, grants, auth scope set,
+  parity bus note). Tests: tests/test_mcp_sources.py
+  **6 passed** (permission record + chunk count on create,
+  list opens nothing, full read opened in order + missing
+  source not_found, append continues positions 0,1,2,
+  unnamed kind refused validation_error, request's two
+  gates + queued-not-done, draft principal files but
+  cannot commission); family batch (all four MCP families
+  + registry + auth + parity + sources API) **52 passed**;
+  core + internal batch **44 passed**; gates batch
+  (comment — mcp density repaired to 45.1% by
+  documentation — docs, architecture, signed releases,
+  release-zip, registry, parity, OpenAPI snapshot) + the
+  sources/core suites **70 passed** in the final combined
+  run. Ruff E9+F clean on every touched file except the
+  pre-existing F841 in tests/test_mcp_core.py (left as
+  found, as before). Atlas regenerated (410 files),
+  B-198 inventory row added. Contract unchanged:
+  **202 paths / 230 schemas**. Full suite NOT re-run — a
+  full Phase 19 green is the B-220 gate's to prove. No
+  ZIP at this slice. Progress: **210/350. Next: B-211
+  (MCP tools — planning: tasks, decisions, questions).**
+- **B-211 MCP tools — planning: tasks, decisions,
+  questions** ✅ (timer crew, 2026-10-26): the fifth domain
+  family — what approval mints, and its upkeep. Six new
+  internal operations (owner planning): `planning.list_tasks`
+  + `planning.list_decisions` + `planning.list_questions`
+  (`planning:read` → the read rung; the services' own
+  orders: soonest-due, newest-first, oldest-open) and
+  `planning.decision_chain` (the supersede walk, oldest
+  first — the family's conscience: an agent has no clicks,
+  so the chain is a first-class tool and its annotation
+  instructs answering "what did we decide?" from it);
+  `planning.update_task` + `planning.resolve_question`
+  (`planning:write` → **draft**, as at their member doors).
+  The serialisers keep the planning law visible: a task's
+  suggested_owner_label rides SEPARATELY from owner_id
+  (draft words are evidence, never an assignment), and
+  resolve-with-decision-text mints a linked Decision in
+  the service's own transaction — draft-grade by the
+  group's stated law, accountability carried by the audit
+  labels, the reasoning written in auth.py where a
+  rung-widener must read it. Update takes the service's
+  presence-stated changes dict (absent = untouched, null =
+  an act) rather than flattened optional arguments. Direct
+  creation is deliberately out of family: over this
+  surface planning items are born as candidates and
+  approved, so agent-originated work carries provenance.
+  The server serves 36 tools. Superseded assertions
+  updated in place (operations 28→34, parity 30/28→36/34,
+  grants, auth scope set, parity bus note). Tests:
+  tests/test_mcp_planning.py **5 passed** (the world itself
+  built the agent way — drafted + approved candidates
+  minting all three kinds, lists carrying provenance
+  candidate ids, suggested-owner-not-assignment through an
+  edited draft, task upkeep + resolve-with-truth minting
+  the linked decision + second resolution conflict, the
+  chain walked through a real HTTP-door supersede with
+  current_only agreeing, read-only principal refused both
+  upkeep tools); family batch (planning + registry + auth
+  + parity + tasks/decisions/questions APIs) **45 passed**;
+  core + internal batch **44 passed**; gates batch
+  (comment — mcp density repaired to 45.1% by
+  documentation — docs, architecture, signed releases,
+  release-zip, registry, parity, OpenAPI snapshot) +
+  planning/core suites **69 passed** in the final combined
+  run. Ruff E9+F clean on every touched file except the
+  pre-existing F841 in tests/test_mcp_core.py (left as
+  found, as before). Atlas regenerated (411 files),
+  B-198 inventory row added. Contract unchanged:
+  **202 paths / 230 schemas**. Full suite NOT re-run — a
+  full Phase 19 green is the B-220 gate's to prove. No
+  ZIP at this slice. Progress: **211/350. Next: B-212
+  (MCP tools — notifications, digests, and announcements).**
+- **B-212 MCP tools — notifications, digests, and
+  announcements** ✅ (timer crew, 2026-10-26): the sixth
+  and last domain family of the B-207 → B-212 ladder. Six
+  new internal operations: `announcements.list`
+  (`announcements:read` → read; the board pinned-first,
+  expired posts honoured only at organiser role, the
+  door's rule) and `announcements.create`
+  (`announcements:write` → **publish**; the role law stated
+  in the operation, the PERSON law passed through to the
+  announcements service, which refuses a seat in its own
+  words — B-043's law, unprefaced by any paraphrase here);
+  `notifications.inbox` + `notifications.preferences`
+  (`notifications:read`; a person's own rows and effective
+  policy — no seat form exists to offer, so none is);
+  `digests.list` (`notifications:read`) and
+  `digests.preview` (`notifications:write` → publish +
+  organiser role law): compose-and-store UNSENT — the
+  digest SEND stays at the human door in this slice,
+  recorded as the deliberate line (an agent surface earns
+  the preview before the send). With B-212 the MCP domain
+  surface stands complete as Phase 19 promised: 42 tools
+  over 40 registered operations, every one through the
+  one bridge under the call-time scope law. The server
+  header's "what remains" now names them: transport
+  hardening, the conformance suite, and the B-220 phase
+  gate. Superseded assertions updated in place (operations
+  34→40, parity 36/34→42/40, grants, auth scope set,
+  parity bus note). Tests: tests/test_mcp_notifications.py
+  **6 passed** (organiser person announces + pinned-first
+  board, seat refused in the service's own words + board
+  stays empty, member-role person refused at the
+  operation, honestly-empty inbox + full preferences grid
+  + missing person not_found, digest preview composes
+  unsent and lists + member refused, draft principal
+  refused both write tools at the guard); family batch
+  (all six MCP families) **46 passed** with the
+  announcements/notifications/digest API suites; core +
+  internal batch **44 passed**; gates batch (comment —
+  mcp density repaired to 45.0% by documentation — docs,
+  architecture, signed releases, release-zip, registry,
+  parity, OpenAPI snapshot) + notifications/core suites
+  **70 passed** in the final combined run. Ruff E9+F
+  clean on every touched file except the pre-existing
+  F841 in tests/test_mcp_core.py (left as found, as
+  before). Atlas regenerated (412 files), B-198 inventory
+  row added. Contract unchanged: **202 paths / 230
+  schemas**. Full suite NOT re-run — a full Phase 19
+  green is the B-220 gate's to prove. No ZIP at this
+  slice. Progress: **212/350. Next: B-213 (MCP resources,
+  per the roadmap — the "streamable HTTP transport
+  hardening" label first written here was a mislabel,
+  corrected at B-213).**
+- **B-213 MCP resources** ✅ (timer crew, 2026-10-26):
+  the read-only `gpa://` shelf, in a new module
+  `src/gpa/mcp/resources.py` registered on the same
+  FastMCP server at the end of `build_server`. NO new
+  internal operations and NO new tools (the catalogue
+  stands at 42 tools / 40 operations): every group
+  resource is a presentation of an existing operation
+  through the one bridge — templates
+  `groups/{group_id}/calendar.json` (application/json)
+  and `calendar.ics` (text/calendar, rendered in the
+  module from `events.list` facts: UTC moments, DATE form
+  for all-day, cancelled as STATUS:CANCELLED, RFC 5545
+  escaping), `groups/{group_id}/events/{event_id}.json`,
+  `groups/{group_id}/decisions.json` (current_only —
+  settled truth), `groups/{group_id}/queue.json` (totals
+  by status/kind + the pending rows), and
+  `groups/{group_id}/memory-map.json` (group facts,
+  roster counts, visible counts, sibling URIs). Plus the
+  static shelf: `gpa://openapi.json` (the shipped
+  contract, verbatim) and `gpa://docs.json` +
+  `gpa://docs/{chapter}` (text/markdown) — the docs set
+  served from the tree's own `docs/` directory, the
+  chapter allow-list being the fresh directory listing
+  itself, so path tricks meet not_found. TWO LAWS ride
+  the shelf: reads happen at MEMBER role (the bright
+  line — a draft is absent from both calendar forms and
+  not_found at its own URI), and the read scope is
+  checked PER READ (server.py's principal resolution was
+  factored into `_resolve_principal`; a new
+  `_resource_guard` demands read/admin, so a draft-only
+  principal is refused insufficient_scope at the
+  resource). Tests: tests/test_mcp_resources.py **7
+  passed** (shelf shape + MIME types, calendar forms
+  agreeing with the draft absent, event bright line,
+  decisions/queue/memory-map, static shelf verbatim,
+  non-chapter names refused, read-scope guard); combined
+  MCP + parity + gates batch **103 passed** with the
+  only 2 failures being the docs gate naming the new
+  files — fixed by the atlas regen + the B-198 inventory
+  row, after which docs + comment gates **31 passed**;
+  internal batch **36 passed**. Ruff E9+F clean on every
+  touched file. Atlas regenerated (414 files), B-198
+  inventory row added. Contract unchanged: **202 paths /
+  230 schemas**. Full suite NOT re-run — a full Phase 19
+  green is the B-220 gate's to prove. No ZIP at this
+  slice. Progress: **213/350. Next: B-214 (MCP
+  subscriptions + notifications).**
+- **B-214 MCP subscriptions + notifications** ✅ (timer
+  crew, 2026-10-26): the shelf's watch, in a new module
+  `src/gpa/mcp/subscriptions.py` wired into `build_server`.
+  NO new internal operations and NO new tools (the
+  catalogue stands at 42 tools / 40 operations).
+  Subscribable set is exactly the moving shelf —
+  `gpa://groups/{id}/calendar.json`, `calendar.ics`, and
+  `queue.json` — validated by the store on the way in with
+  two distinct refusals (a non-group-resource name is
+  `not_found`; an existing but unmoving group resource —
+  decisions, memory-map — is `validation_error` naming
+  the set). `SubscriptionStore` is per-session, locked,
+  and deliberately NOT durable (clear_session forgets a
+  session whole; a subscription is a fact about a live
+  session). The server registers real low-level protocol
+  handlers for `resources/subscribe` /
+  `resources/unsubscribe`: subscribe passes B-213's
+  read-scope guard per call (a draft-only principal meets
+  `insufficient_scope`, store untouched); unsubscribe
+  derives its session key from the caller's own context,
+  so a session can only drop its own watches.
+  **One event system, two surfaces**: `dispatch_frame`
+  translates frames in the SSE stream's published
+  vocabulary (`gpa.services.stream` — the module imports
+  no service; it works on the frames' plain shape) into
+  `send_resource_updated` calls on the watching sessions:
+  `job.progress` → calendar (both forms) + queue,
+  `notification.created` → calendar only,
+  `snapshot`/`comment.created` → nothing (a comment moves
+  a discussion, which neither document carries), unknown
+  frames → nothing. Over-notify is the stated law (a
+  spurious updated costs one re-read; a missed one leaves
+  a stale calendar cited). `send_list_changed` rides the
+  SDK's three per-catalogue verbs and refuses an invented
+  catalogue. The server also exposes
+  `_gpa_notify_stream_frame(group, event, data)` — the
+  boundary entry an embedding process calls when it hears
+  the backend's stream. **SDK capability gap, recorded
+  honestly**: SDK 1.30.0 hardcodes resources
+  `subscribe=False` and defaults every `listChanged` off
+  while still routing subscribe requests and offering the
+  send verbs — `build_server` wraps the instance's
+  initialization options to advertise the truth
+  (subscribe=True, all three listChanged=True), covered
+  by test. Tests: tests/test_mcp_subscriptions.py **8
+  passed** (subscribable set + refusal codes, store
+  per-session/forgetful laws, handlers registered +
+  capabilities, handler records/drops the watch, scope
+  guard, frame translation table, dispatcher
+  watchers-only/exactly-once, list-changed verbs +
+  refusal). One transient: the file's very first run
+  showed 7 passed / 1 failed on the capabilities test;
+  the same test passed alone immediately after and the
+  full file passed 8/8 on re-run — not reproduced since,
+  recorded here rather than hidden. Combined batch (all
+  `test_mcp_*` + parity + comment gate + docs gate +
+  architecture + internal API) **122 passed** from its
+  own log, with comment-gate mcp density held (the new
+  module is documented to the package's 100/100/45
+  floor). Ruff E9+F clean on touched files. Atlas
+  regenerated (416 files), B-198 inventory row added.
+  Contract unchanged: **202 paths / 230 schemas**. Full
+  suite NOT re-run — a full Phase 19 green is the
+  B-220 gate's to prove. No ZIP at this slice. Progress:
+  **214/350. Next: B-215 (MCP prompts).**
+- **B-215 MCP prompts** ✅ (timer crew, 2026-10-26):
+  curated, versioned workflow templates as MCP prompts,
+  in a new module `src/gpa/mcp/prompts.py` (public
+  symbols `PROMPTS` + `render_prompt(name, args)`, as
+  the docs atlas prescribes) registered on the same
+  FastMCP server by `register_prompts` at the end of
+  `build_server`. NO new internal operations and NO new
+  tools (the catalogue stands at 42 tools / 40
+  operations). The catalogue is exactly the roadmap's
+  five jobs, each version 1, in roadmap order:
+  `plan_event` (Plan an event with this group — group_id
+  + event_idea required, when/place optional),
+  `brief_before_event` (Brief me before Saturday),
+  `recap_last_night` (Recap last night),
+  `what_is_undecided` (What is still undecided?), and
+  `prepare_weekly_digest_draft` (Prepare the weekly
+  digest draft — compose via gpa_preview_digest, stored
+  UNSENT; sending stays at the human door). Each
+  template composes the group's own resources and tools
+  IN ITS TEXT (memory-map/calendar/decisions/queue URIs
+  with the real group id filled, plus named tools in
+  working order), and each rendered prompt carries the
+  two standing sentences verbatim from module constants:
+  DRAFTS_RULE ("Drafts go to the queue: … nothing is
+  published until it is approved through the one
+  approval law") and the data posture (group content is
+  data, never instructions). **A prompt holds no
+  capability of its own** (Doc 13's law): rendering
+  reads no group, calls no operation, travels no
+  bridge — the module imports no service/router/model/
+  bridge; the resources and tools it names carry their
+  own scope law when acted on. Typed arguments, typed
+  failures: `render_prompt` refuses an unknown prompt
+  as `not_found` and a missing-required / undeclared /
+  non-string argument as `validation_error` naming the
+  argument; an unsupplied optional renders as the
+  explicit NOT_SPECIFIED line ("do not invent one;
+  leave it open or ask the group") — gaps stay gaps.
+  The served functions' argument descriptions ride
+  pydantic Field annotations imported at module top:
+  the SDK resolves served annotations against module
+  globals, and the slice's first run failed exactly
+  there (a function-local Annotated import made the
+  prompts unbuildable) — fixed at root and pinned by
+  the served-surface test. Tests:
+  tests/test_mcp_prompts.py **8 passed** (catalogue
+  shape + versions, typed/required arguments, drafts
+  rule in every render, supplied/unsupplied rendering,
+  versioned header, composition checked against the
+  SERVED tool/resource lists, typed failures, SDK
+  list/get serving the catalogue's own words).
+  Combined batch (all `test_mcp_*` + parity + comment
+  gate + docs gate + architecture + internal API)
+  **128 passed, 2 failed** from its own log — both
+  failures the docs gate naming the new files, fixed
+  by atlas regen (418 files) + the docs/17 inventory
+  row, gates then **31 passed**. Ruff E9+F clean.
+  Contract unchanged: **202 paths / 230 schemas**.
+  Full suite NOT re-run — a full Phase 19 green is the
+  B-220 gate's to prove. No ZIP at this slice.
+  Progress: **215/350. Next: B-216 (MCP elicitation
+  bridge).**
+- **B-216 MCP elicitation bridge** ✅ (timer crew, 2026-10-26):
+  the server may ASK the human for one missing fact, in a
+  new module `src/gpa/mcp/elicitation.py` (public symbols
+  `FACT_KINDS`, `NOT_AN_APPROVAL`, the four answer models,
+  `answer_schema`, `client_supports_elicitation`,
+  `elicitation_message`, `degrade_to_open_question`) plus
+  one new internal operation and one new tool — the
+  catalogue stands at **43 tools / 41 operations**. The
+  fact kinds are a closed vocabulary (place / time /
+  yes_no / free_text), each with a one-field typed answer
+  schema (a boolean for yes_no, words for the rest); an
+  invented kind is refused `validation_error` at the
+  module's door, the operation's door, and the tool's,
+  before anything is asked or filed. The tool
+  `gpa_ask_for_missing_fact` (draft scope; rides the
+  existing `planning:write` internal scope — no grant
+  widened) is the server's one async tool: where the
+  calling client's initialize handshake advertised FORM
+  elicitation it asks live through the SDK context and
+  returns the human's answer AS DATA with
+  `approval: False` stated in the result — nothing is
+  written, minted, or decided by an accepted elicitation.
+  **Every other outcome degrades, by design**: no context,
+  no capability, a decline, a cancel, or a failed ask all
+  file the SAME question through `elicitation.ask`, which
+  creates an OpenQuestion via the planning service's own
+  create door (author = the asking agent's label, B-086's
+  row and audit) and routes it to the organiser inbox —
+  one `elicitation.question` notification per active
+  organiser-and-above person. A named candidate context
+  must be this group's and still pending (unknown =
+  `not_found`, decided = `conflict`); the candidate is
+  read, never written — **an answer can inform a draft;
+  it can never be an approval**, and the operation stamps
+  `approval: False` on its own answer. Tests:
+  tests/test_mcp_elicitation.py **10 passed** (vocabulary
+  + typed schemas, handshake detection in object and dict
+  shapes, the filed/authored/routed degradation with the
+  notification row asserted in the DB, a linked candidate
+  staying pending, unknown-candidate refusal filing
+  nothing, the accepted live ask filing nothing, a
+  declined ask still filing, read-only principal refused
+  `insufficient_scope`, the helper validating pre-call).
+  Combined batch (all `test_mcp_*` + parity + comment
+  gate + docs gate + architecture + internal API)
+  **140 passed** from its own log — the 2 first-run
+  failures were the docs gate naming the new files, fixed
+  by atlas regen (420 files) + the docs/17 inventory row;
+  superseded count assertions updated in place (registry
+  40→41 operations, manifest 42→43 entries, parity
+  42/40→43/41, core operations set + CORE_TOOLS, auth
+  TOOL_SCOPES set). Ruff E9+F clean. Contract unchanged:
+  **202 paths / 230 schemas**. Full suite NOT re-run — a
+  full Phase 19 green is the B-220 gate's to prove. No
+  ZIP at this slice. Progress: **216/350. Next: B-217
+  (MCP sampling policy).**
+- **B-217 MCP sampling policy** ✅ (timer crew, 2026-10-26):
+  server-initiated sampling is **OFF by default**, in a new
+  module `src/gpa/mcp/sampling.py` (public symbols
+  `DEFAULT_OFF_REASON`, `SAMPLING_OPERATION`,
+  `sampling_policy`, `client_supports_sampling`,
+  `require_sampling_enabled`, `effective_max_tokens`,
+  `authorise_sampling_call`) plus one new internal
+  operation, one new tool, and three settings — the
+  catalogue stands at **44 tools / 42 operations**. The
+  settings: `GPA_MCP_SAMPLING_ENABLED` (default False —
+  sampling spends the CLIENT operator's model budget on
+  server-chosen prompts through a model this deployment
+  does not control, so enabling it is an operator's
+  deliberate act; the reason is also written in Doc 13's
+  new sampling section and in docs/15's error table),
+  `GPA_MCP_SAMPLING_MAX_TOKENS` (512, a caller's larger
+  request is CLAMPED to it, not refused), and
+  `GPA_MCP_SAMPLING_MAX_CALLS_PER_DAY` (20). The tool
+  `gpa_request_sampling` (publish scope; new internal
+  scope `sampling:request` maps only from publish/admin,
+  B-210's commissioning reasoning) authorises BEFORE the
+  ask through `sampling.sample`: the operation checks
+  B-047's ledger both ways — a group whose daily AI
+  budget is spent meets `sampling_budget_exceeded`, as
+  does a group that has used its day's sampling calls
+  (counted on the ledger's `mcp_sampling` rows through
+  usage.count_operation_today) — and writes the call's
+  ledger row (honestly zero server-side cost: the
+  client's model bills the client) and hash-chained audit
+  row (actor, prompt LENGTH, token ceiling — never words)
+  in its transaction, so every authorised attempt is on
+  the record even if the client's model then fails. Only
+  then does the tool ask, via the session's
+  `create_message`, one user message at the authorised
+  ceiling; a client without the sampling capability is
+  reported as data (`sampled: False`,
+  `client_sampling_unsupported`) with NO model substituted
+  — sampling has no degradation road, by design. Sampled
+  text returns marked `is_data: True`. New error codes
+  `sampling_disabled` (403) + `sampling_budget_exceeded`
+  (422). Tests: tests/test_mcp_sampling.py **10 passed**
+  on its first full-file run (27.74s, the run's own
+  delivered output) and again on re-run (10 passed,
+  run3.log). Combined batch (all
+  `test_mcp_*` + parity + comment gate + docs gate +
+  architecture + internal API) **148 passed / 2 failed**
+  from its own log — both superseded assertions (the core
+  operations set, the docs/15 error table missing the new
+  codes), fixed in place; the affected files re-ran
+  **39 passed**. Atlas regenerated 422 files; docs/17
+  inventory row added. Ruff E9+F clean. Contract
+  unchanged: **202 paths / 230 schemas**. Full suite NOT
+  re-run — a full Phase 19 green is the B-220 gate's to
+  prove. No ZIP at this slice. Progress: **217/350.
+  Next: B-218 (MCP security hardening).**
+- **B-218 MCP security hardening** ✅ (timer crew,
+  2026-10-26): the hardening law lives in a new module
+  `src/gpa/mcp/security.py` (public symbols
+  `DESTRUCTIVE_TOOLS`, `OPEN_WORLD_TOOLS`, `CONSENT_TOOLS`,
+  `IDEMPOTENT_WRITE_TOOLS`, `INJECTION_POSTURE`,
+  `tool_annotations`, `all_annotations`,
+  `check_annotations`, `consent_required`,
+  `require_consent`, `principal_key`, `ToolRateLimiter`,
+  `mark_as_data`) — no new operation and no new tool, so
+  the catalogue stands at **44 tools / 42 operations**.
+  **Annotations**: every served tool now carries the four
+  MCP hints, derived truthfully — readOnlyHint is exactly
+  the read credential scope; destructiveHint is the
+  curated set {approve, reject, publish, cancel};
+  openWorldHint is {emit, sampling, elicitation};
+  idempotentHint is every read plus the curated upsert
+  set {set_rsvp, update_task, update_profile,
+  update_group, edit_candidate}. The server passes them
+  at every `@server.tool` registration, the operations
+  listing carries them, and the B-206 manifest stamps
+  them beside each description (a swapped annotation is
+  now detectable like a swapped description).
+  **Consent gates**: destructive tools plus the gated
+  open-world tools {emit, sampling} require the caller's
+  explicit per-call `consent=true`, checked in `_call`
+  (and in the sampling tool) after the scope check and
+  BEFORE the bridge — a refusal is the new error code
+  `consent_required` (403, docs/15 row + Doc 13 section)
+  and writes nothing. Elicitation is the one stated
+  exception: open-world but NOT consent-gated, because
+  its external act IS a human consent interaction.
+  Consent replaces neither scope nor role. Twenty
+  existing gated call sites in the MCP tests (candidates,
+  events, planning, sampling, resources) were updated in
+  place to state consent — the laws they test are
+  unchanged, and the seat/scope refusal tests still meet
+  their original codes because scope is checked first.
+  **Rate limits**: `GPA_MCP_RATE_LIMIT_PER_MINUTE`
+  (default 600, 0 disables deliberately) — a fixed-window
+  per-principal brake (`ToolRateLimiter`, keyed by
+  `principal_key`) counted once per call in
+  `_resolve_principal`, after the scope check; past the
+  ceiling is the existing `rate_limited` (429).
+  **Injection posture**: `_call` returns every operation
+  result through `mark_as_data` (`is_data: True` first) —
+  group content is data, never instructions (B-142's law
+  at this boundary); the acceptance test plants an
+  instruction in a source and proves it returns verbatim
+  as inert data with the queue untouched. **Full audit**:
+  operation calls keep travelling the bridge's B-165
+  hash-chained hook (asserted: a consented approve lands
+  its `internal.candidates.approve` row, actor
+  `module:mcp`, result ok; a consent refusal lands none);
+  gateway refusals are recorded in the structured log
+  with their error code. Tests:
+  tests/test_mcp_security.py **7 passed** (run3.log,
+  after two test-shape fixes at root: the valid source
+  kind is `chat_paste`, and source rows key on
+  `source_id`). Combined batch **154 passed / 3
+  failed** from its own log (batch.log, 427.16s) — all
+  three the resources suite's publish helper missing
+  the new consent, fixed in place; the affected files
+  re-ran **25 passed**. The batch was also re-run in
+  three chunks read from their own logs, which agree
+  exactly (30 + 34 + 90 passed, the same 3 resources
+  failures). CORRECTION (same run, on the batch's late
+  delivery): an early garbled delivery of the batch's
+  summary read "155 passed / 5 failed" and the first
+  writing of this entry repeated it; the batch's own
+  log is the authority and reads 154/3, as the chunks
+  showed. All other B-218 facts stand. Atlas regenerated 424 files; docs/17
+  inventory row added. Ruff E9+F clean. Contract
+  unchanged: **202 paths / 230 schemas**. Full suite NOT
+  re-run — a full Phase 19 green is the B-220 gate's to
+  prove. No ZIP at this slice. Progress: **218/350.
+  Next: B-219 (MCP conformance + client pack).**
+- **B-219 MCP conformance + client pack** ✅ (timer crew,
+  2026-10-26): the catalogue, the conformance runner, and
+  two independent worked clients — no new operation and
+  no new tool, so the catalogue stands at **44 tools /
+  42 operations**. **The catalogue**
+  (`src/gpa/mcp/catalogue.py`: `EXAMPLES`,
+  `tool_catalogue`, `catalogue_digest`, `check_catalogue`,
+  `render_catalogue_markdown`) joins every spec to its
+  credential scope, the internal registry's required
+  scope, its B-218 annotations, its description hash, and
+  ONE curated worked example (placeholder ids only;
+  consent-gated tools' examples state `consent=True`, and
+  only the two no-argument meta tools may carry `{}`) plus
+  the example as a `tools/call` JSON-RPC shape. The
+  checker fails BY NAME on coverage drift either way, a
+  hash that stops recomputing, a flipped annotation, a
+  wrong internal scope, or a missing/consent-less example.
+  The full catalogue is served as the static resource
+  `gpa://tool-catalogue.json` (application/json, B-213's
+  shelf, guarded like its siblings; body = tools + count
+  + digest) and its index table is Doc 13's new B-219
+  section as a GENERATED section between markers,
+  regenerated by `scripts/generate_mcp_catalogue.py`
+  (idempotent; refuses plainly when the markers are
+  absent) and pinned byte-for-byte by the drift test.
+  **Conformance** (`src/gpa/mcp/conformance.py`:
+  `run_conformance(server)`) runs ten named cases
+  in-process against a built server: identity + the
+  supported protocol versions, tools/list == catalogue,
+  served annotations == catalogue per tool, prompts/list
+  == the B-215 catalogue, statics list (incl. the
+  catalogue resource), the six group templates + docs
+  template, the catalogue resource reading with its
+  digest recomputing, and the three refusals (unknown
+  tool — exception or isError result — unknown resource,
+  unknown prompt). **Inspector boundary, stated
+  honestly**: the MCP Inspector is an external
+  interactive tool (`npx @modelcontextprotocol/inspector`)
+  — NOT run here (no npm/network in the suite); the
+  module is the automated spec-case half, and Doc 13's
+  B-219 section documents the Inspector road (exact
+  command) for a human who has it installed. **Two
+  independent clients**: `examples/mcp_stdio_client.py`
+  (official SDK over stdio, spawning the server, proxy
+  vars stripped) and `examples/mcp_http_client.py` (NO
+  SDK — hand-rolled JSON-RPC 2.0 over stdlib http.client
+  to `GPA_MCP_URL`, default the shipped
+  `http://127.0.0.1:8765/mcp`, bearer from
+  `GPA_MCP_TOKEN`, `mcp-session-id` captured and resent,
+  `notifications/initialized` sent, both plain-JSON and
+  `data:` event-stream bodies read); both call
+  `gpa_server_info`, read the catalogue resource, and
+  print the same summary shape. Tests:
+  tests/test_mcp_conformance.py **9 passed** from its own
+  log (catalogue clean + three tamper legs failing by
+  name, resource listed + read whole with digest,
+  conformance all-pass over 10 named cases, Doc 13 drift,
+  BOTH examples run for real as subprocesses — the HTTP
+  one against a subprocess streamable-HTTP server with an
+  `issue_oauth_token`-minted bearer). One fix at root
+  during the run: the SDK client's `read_resource`
+  answers a result object (`.contents`), not a list —
+  the stdio example now reads that shape. No pre-existing
+  assertion needed superseding: the resources/prompts
+  suites look statics up by key, so the new static rides
+  them unchanged. Specified suites re-run from their own
+  logs: resources **7 passed**, registry **7 passed**,
+  security **7 passed**, prompts **8 passed**, docs gate
+  **25 passed**, comment gate **6 passed**, architecture
+  **3 passed**, parity **6 passed**, core **8 passed**.
+  Combined batch (all `tests/test_mcp_*.py`) **117
+  passed** from its own log (batch.log, 320.18s).
+  CORRECTION (same run, on the batch's late delivery):
+  the first writing of this entry and commit 3df9236
+  stated 163 passed — that figure was derived by
+  arithmetic (154 + 9) from B-218's batch, whose file
+  set also carried parity + the gates, and was never
+  read from this run's log; batch.log itself reads 117
+  passed / 0 failed, which the sixteen files' own
+  per-file counts sum to exactly. All other B-219 facts
+  stand. Atlas regenerated **428 files**; docs/17
+  inventory rows added for all six new files. Ruff E9+F
+  clean. Contract unchanged: **202 paths / 230 schemas**.
+  Full suite NOT re-run — a full Phase 19 green is the
+  B-220 gate's to prove. No ZIP at this slice. Progress:
+  **219/350. Next: B-220 (Phase gate — the parity
+  proof).**
 
 ## Decisions & deviations (from the roadmap defaults)
 
@@ -2890,6 +3926,26 @@ Phase 16 begins at B-157.
   2026-10-26.zip` (signed, SBOM inside, drill log inside).
   Contract: **201 paths / 229 schemas**. Progress:
   **180/350, Phases 0–17 complete.**
+
+## HALT — build stopped at Volmarr's order (2026-10-26 ~17:28 EDT)
+
+- Volmarr ordered all work on the hackathon app stopped and the
+  current state pushed to the team repo: the team waits for the
+  event's proper setup — Volmarr able to join the correct Discord,
+  and the needed API keys in hand — with Henry, as team lead,
+  responsible for organising the event-provided resources for his
+  teammates. No further slices are built until Volmarr resumes it.
+- State at the halt: **220/350 slices built** (B-220, the Phase 19
+  gate, is built: gate tests 3 passed standalone; docs restated;
+  atlas 429 files). The gate's FULL-SUITE proof is deferred, not
+  waived: three full attempts ended without summary, showing a
+  failure cluster that appears only in full-run order (the band's
+  files pass standalone, 130/130 in a clean copy). Last proven
+  full suite: Phase 18 gate, 1,056 passed / 7 skipped (SQLite);
+  PostgreSQL proof stands at the Phase 17 gate (1,013 on-engine).
+- The 10-minute forge cron (`gpa-backend-forge-10min`) is DISABLED
+  at this order. The read-only Hackathon Discussion chat watch
+  keeps running so Henry's setup progress stays visible.
 
 ## Standing laws in force here
 

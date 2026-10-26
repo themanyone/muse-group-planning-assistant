@@ -15,11 +15,15 @@ an agent framework) can discover in the contract itself:
   this): an API key carries scopes; a seat's key is checked
   at the door on every call, exactly like a person's key
   (B-014/B-017). ``read`` sees, ``draft`` creates sources
-  and candidates, ``publish`` decides nothing by itself —
-  approval additionally requires a PERSON (B-018: a seat
-  can draft, can never approve, whatever its scopes say),
-  and ``admin`` administers. A session (a signed-in person)
-  carries every scope; the ladder only binds key callers.
+  and candidates, ``publish`` lets its holder decide in the
+  review queue — under the ONE approval law (B-203, Phase
+  19): approval additionally requires the group's approver
+  ROLE, for a seat exactly as for a person, so a member seat
+  holding publish still cannot approve, and an organiser
+  seat holding publish approves through the same operation
+  a human organiser's click calls. ``admin`` administers.
+  A session (a signed-in person) carries every scope; the
+  ladder only binds key callers.
 - **The worked example** lives at
   ``examples/secretary_seat.py``: a secretary seat reads a
   Samtal hall and drafts what it finds into the queue. It
@@ -33,8 +37,12 @@ from fastapi.routing import APIRoute
 # deliberately small — a seat is a colleague with a defined
 # job, not a second admin API. Doors a seat must never use
 # (member administration, integrations, settings) are absent
-# by design, and the approval door is absent too: approval
-# is a person's act, so it is not part of the pack at all.
+# by design. The approval door is absent from this B-129 pack
+# too — not because a seat can never approve (since B-203 an
+# approver-role seat approves under the one law, through the
+# ordinary candidate route), but because this pack is the
+# drafting surface; the queue's decision doors carry their
+# own tags in the contract.
 AGENT_OPERATIONS: tuple[tuple[str, str], ...] = (
     ("GET", "/api/v1/groups/{group_id}/sources"),
     ("GET", "/api/v1/groups/{group_id}/sources/{source_id}"),
@@ -55,8 +63,10 @@ AGENT_TAG = "agent"
 SCOPE_GUIDE: dict[str, str] = {
     "read": "See the group's sources, queue, events, and memory.",
     "draft": "Create sources and draft candidates into the queue.",
-    "publish": "Request extractions and syncs; never approves — "
-    "approval is a person's act (B-018), whatever scopes a seat holds.",
+    "publish": "Request extractions and syncs, and decide in the "
+    "review queue — only at the group's approver role, under the "
+    "one approval law (B-203): a seat below that role can never "
+    "approve, whatever scopes it holds.",
     "admin": "Administer seats, links, integrations, and webhooks.",
 }
 
