@@ -24,9 +24,9 @@ from gpa.config import Settings
 from gpa.errors import AppError
 from gpa.models.events import RSVP_STATUSES, Event, Rsvp
 from gpa.models.groups import Group
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services import events as event_service
-from gpa.services import notifications as notify_service
 from gpa.services import reminders as reminder_service
 
 NOTIFY_JOB_KIND = "notify"
@@ -97,7 +97,12 @@ def _notify_promotions(
             group_id=group.id, entity_type="rsvp", entity_id=row.id,
             detail={"event_id": event.id, "to": row.principal_label},
         )
-        notify_service.notify_rsvp_promotion(db, group=group, event=event, rsvp=row)
+        call_internal(
+            db, caller="events", operation="notify.rsvp_promotion",
+            payload={
+                "group_id": group.id, "event_id": event.id, "rsvp_id": row.id,
+            },
+        )
     if promoted:
         db.commit()
 

@@ -86,6 +86,62 @@ class EmailChangeRequest(BaseModel):
     new_email: str = Field(min_length=3, max_length=320)
 
 
+class LoginResponse(BaseModel):
+    """What password sign-in returns (B-174). Without MFA this is
+    the ordinary session; with MFA on, the tokens stay empty and
+    the answer carries ``mfa_required`` plus the single-use
+    challenge the authenticator code must answer."""
+
+    access_token: str | None = None
+    refresh_token: str | None = None
+    token_type: str = "bearer"
+    user_id: str
+    mfa_required: bool = False
+    mfa_challenge: str | None = None
+
+
+class MfaChallengeRequest(BaseModel):
+    """Answer a sign-in MFA challenge with an authenticator code."""
+
+    challenge_token: str
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaCodeRequest(BaseModel):
+    """A bare authenticator code (confirm enrolment / disable)."""
+
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaSetupResponse(BaseModel):
+    """Enrolment's one showing of the secret, plus the QR URI."""
+
+    secret: str
+    otpauth_uri: str
+    enabled: bool = False
+
+
+class MfaStatusResponse(BaseModel):
+    """The account's MFA posture (B-174)."""
+
+    enabled: bool
+    setup_pending: bool
+    offer_required: bool
+
+
+class SessionItemResponse(BaseModel):
+    """One signed-in device (a refresh-token family, B-174)."""
+
+    family_id: str
+    created_at: str
+    last_seen_at: str
+    expires_at: str
+    user_agent: str = ""
+    ip_address: str = ""
+    status: str
+    current: bool = False
+
+
 class ApiKeyCreateRequest(BaseModel):
     """Mint an API key with chosen scopes (B-014)."""
 

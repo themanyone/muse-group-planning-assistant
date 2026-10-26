@@ -41,8 +41,9 @@ from gpa.models.identity import now_utc
 from gpa.models.sources import Provenance, SourceChunk
 from gpa.services import audit
 from gpa.services import candidates as candidate_service
+from gpa.services import sources as source_service
 from gpa.services import events as event_service
-from gpa.services.matching import _normalised
+from gpa.services.matching import normalised
 
 # Candidate draft field → the event column it feeds, for the
 # text fields a merge can move.
@@ -125,8 +126,13 @@ def link_candidate_sources(db: Session, event: Event, candidate: Candidate) -> l
     cover it — the same shape minting writes (B-049), so a
     merged event answers "where did this come from?" exactly
     like a minted one. Returns the source ids now linked."""
+    # Quotes are sealed at rest (B-167), and a seal is
+    # nonce-random — dedup must compare OPENED quotes, or
+    # the same evidence would never match itself.
+    from gpa.crypto import fields as _fields
+
     existing = {
-        (row.source_id, row.field, row.quote)
+        (row.source_id, row.field, _fields.open_text(db, event.group_id, "event_link.quote", row.quote))
         for row in db.query(EventSourceLink)
         .filter(EventSourceLink.event_id == event.id)
         .all()
@@ -139,13 +145,17 @@ def link_candidate_sources(db: Session, event: Event, candidate: Candidate) -> l
         chunk = db.get(SourceChunk, row.chunk_id)
         if chunk is None:
             continue
-        key = (chunk.source_id, row.field, row.quote)
+        key = (chunk.source_id, row.field, source_service.open_quote(db, row))
         if key in existing:
             continue
         db.add(
             EventSourceLink(
                 event_id=event.id, source_id=chunk.source_id,
-                field=row.field, quote=row.quote,
+                field=row.field,
+                quote=_fields.seal_text(
+                    db, event.group_id, "event_link.quote",
+                    source_service.open_quote(db, row),
+                ),
             )
         )
         existing.add(key)
@@ -320,7 +330,7 @@ def _values_agree(current: str, new: str) -> bool:
     """Two statements of a text field agree when they are the
     same words, or one contains the other (a fuller and a
     shorter form of one fact)."""
-    norm_current, norm_new = _normalised(current), _normalised(new)
+    norm_current, norm_new = normalised(current), normalised(new)
     if not norm_current or not norm_new:
         return False
     return norm_current == norm_new or norm_current in norm_new or norm_new in norm_current
@@ -445,7 +455,7 @@ def merge_candidate_into_event(
             outcome["filled"].append(event_field)
             continue
         if _values_agree(current, value):
-            if len(_normalised(value)) > len(_normalised(current)):
+            if len(normalised(value)) > len(normalised(current)):
                 # The fuller form of the same fact refines it.
                 changes[event_field] = value
                 outcome["applied"].append(event_field)

@@ -33,7 +33,8 @@ from gpa.schemas.events import iso_utc
 from gpa.schemas.flyers import FlyerWallEntry, PrintEventRow, WallEventSummary
 from gpa.services import audit
 from gpa.services import calendar_views
-from gpa.services.vision import _is_genuine_alt
+from gpa.services import sources as source_service
+from gpa.services.vision import is_genuine_alt
 
 
 def _period_bounds(period: str, tz: ZoneInfo) -> tuple[datetime, datetime]:
@@ -87,7 +88,7 @@ def update_alt_text(
     flyer = get_flyer(db, group, flyer_id)
     cleaned = " ".join((alt_text or "").split())
     asset_name = ""
-    if not _is_genuine_alt(cleaned, filename=asset_name):
+    if not is_genuine_alt(cleaned, filename=asset_name):
         raise AppError(
             "validation_error",
             detail=(
@@ -162,7 +163,7 @@ def flyer_wall(
             height=flyer.height,
             alt_text=flyer.alt_text,
             alt_text_status=flyer.alt_text_status,
-            transcript=flyer.transcript,
+            transcript=source_service.opened_flyer_transcript(db, flyer),
             generated=flyer.generated,
             review_status=review_status,
             event=(

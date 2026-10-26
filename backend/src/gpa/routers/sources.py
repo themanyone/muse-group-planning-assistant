@@ -69,7 +69,7 @@ def _detail_response(db: Session, source) -> SourceDetailResponse:
             thumbnail_key=flyer_row.thumbnail_key,
             alt_text=flyer_row.alt_text,
             alt_text_status=flyer_row.alt_text_status,
-            transcript=flyer_row.transcript,
+            transcript=source_service.opened_flyer_transcript(db, flyer_row),
             parent_flyer_id=flyer_row.parent_flyer_id,
             region_json=flyer_row.region_json,
             generated=flyer_row.generated,

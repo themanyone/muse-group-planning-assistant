@@ -45,9 +45,9 @@ from gpa.routers import (
     sources,
     templates,
     truth,
+    uploads,
     users,
 )
-from gpa.storage.local import LocalStorage
 
 # Path segments after which the NEXT segment is a credential
 # (B-145): calendar feeds, guest invites, the email-in door,
@@ -133,6 +133,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # settings here, shared via the ai.client registry so job
     # handlers (which receive only db + payload) reach the same one.
     ai_client.set_client(ai_client.build_client(settings))
+    # The internal API's audit hook (B-165): every internal
+    # call this process dispatches writes its line (caller,
+    # operation, scope, result — never payload) into the audit
+    # stream.
+    from gpa.internal import auditing
+
+    auditing.install(settings=settings)
+    # The job chassis' sealing settings (B-166): payloads at
+    # rest are sealed under this process's one settings object.
+    from gpa.services import jobs as _jobs
+
+    _jobs.set_settings(settings)
+    # The field-encryption service's settings (B-167): the
+    # master key's one source in this process.
+    from gpa.crypto import fields as _fields
+
+    _fields.set_settings(settings)
     # The mail transport (Phase 8, B-095): the notification
     # outbox sends through this driver boundary — the file
     # driver in dev; the SMTP provider driver in production
@@ -148,14 +165,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # The reconciliation job handler (Phase 12, B-137)
     # registers on import, like the other job services.
     from gpa.services import reconcile as _reconcile  # noqa: F401
+    # Error-correction (B-173): a fresh composition starts
+    # with closed circuit breakers and empty bulkheads — no
+    # tenant of a shared process inherits another's outage —
+    # and the data-repair job handler registers on import.
+    from gpa.services import repair as _repair  # noqa: F401
+    from gpa.services import resilience as _resilience
+
+    _resilience.reset_all()
     # The outbound webhook deliverer (Phase 11, B-128): its
     # job handler receives only db + payload, so the process
     # settings it unseals with are wired in here.
     from gpa.services import outbound
 
     outbound.set_settings(settings)
+    from gpa.services import audit as _audit
+
+    _audit.set_chain_secret(settings.secret_key)
     app.state.db = Database(settings.database_url)
-    app.state.storage = LocalStorage(settings.storage_dir)
+    # Storage: the local driver, sealed per-file when the
+    # deployment asks (B-168, GPA_ENCRYPT_STORAGE).
+    from gpa.storage.encrypted import build_storage
+
+    app.state.storage = build_storage(settings)
     # The same backend, shared via the storage registry so job
     # handlers reach it too (Phase 5's vision/transcription).
     from gpa.storage import set_storage
@@ -166,6 +198,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.db.create_all()
 
     install_error_handlers(app)
+
+    # B-171: the durability guard. A handler that answers
+    # success while its tracked session still holds
+    # uncommitted writes has answered a lie — roll the
+    # writes back and answer the structural error instead.
+    # Error responses pass untouched (their sessions close
+    # and roll back by design).
+    @app.middleware("http")
+    async def _durability_guard(request, call_next):  # noqa: ANN001, ANN202
+        response = await call_next(request)
+        from gpa import durability
+
+        violation = durability.pending_violation(request)
+        if violation is not None and response.status_code < 400:
+            violation.session.rollback()
+            from gpa.errors import AppError, problem_body
+            from starlette.responses import JSONResponse
+
+            err = AppError(
+                "uncommitted_writes",
+                detail=(
+                    "The handler returned success with writes still "
+                    "uncommitted; they were rolled back. Commit before "
+                    "answering."
+                ),
+            )
+            return JSONResponse(problem_body(request, err), status_code=err.status)
+        return response
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):
@@ -243,6 +303,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # (sources/permissions) must not be swallowed by the
     # sources router's {source_id} path (Phase 13).
     app.include_router(privacy.router)
+    app.include_router(uploads.router)
     app.include_router(sources.router)
     app.include_router(sources.email_router)
     app.include_router(truth.router)

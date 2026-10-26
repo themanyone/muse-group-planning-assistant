@@ -394,3 +394,14 @@ class Rsvp(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=now_utc, onupdate=now_utc
     )
+
+
+def etag_of(event: Event) -> str:
+    """The event's ETag: its version, in the wire form ``"v<n>"``.
+
+    A pure function of the row, kept in the data layer (B-161) so
+    every layer that renders an event — services and schemas
+    alike — computes the tag the same one way, and no schema ever
+    has to import a service to quote it.
+    """
+    return f'"v{event.version}"'

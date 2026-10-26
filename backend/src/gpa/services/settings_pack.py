@@ -159,9 +159,9 @@ def update_settings(
         if value:
             # The same HH:MM reader the group PATCH road uses —
             # one definition of a valid moment (B-099).
-            from gpa.services.notifications import _parse_hhmm
+            from gpa.services.notifications import parse_hhmm
 
-            _parse_hhmm(value, "digest_time")
+            parse_hhmm(value, "digest_time")
         detail["digest_time"] = {"from": group.digest_time, "to": value}
         group.digest_time = value
 

@@ -396,3 +396,16 @@ class Template(Base):
     payload_json: Mapped[str] = mapped_column(Text, default="{}")
     created_by: Mapped[str] = mapped_column(String(80), default="")  # audit label
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+
+
+def task_overdue(task: Task, *, now: datetime | None = None) -> bool:
+    """Overdue is computed, never stored (B-083): a task with a
+    due moment in the past that is not done or cancelled.
+
+    A pure function of the row, kept in the data layer (B-161)
+    so services and schemas compute it identically and no schema
+    ever has to import a service to ask the question.
+    """
+    if task.due_at is None or task.status in ("done", "cancelled"):
+        return False
+    return task.due_at < (now or now_utc())

@@ -27,7 +27,11 @@ NY = "America/New_York"
 
 
 def job_group(job):
-    return json.loads(job.payload_json or "{}").get("group_id")
+    # Payloads are sealed at rest (B-166); payload_of is the
+    # reading law the product itself uses.
+    from gpa.services import jobs as job_service
+
+    return job_service.payload_of(job).get("group_id")
 
 
 @pytest.fixture()

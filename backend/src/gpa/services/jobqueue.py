@@ -52,13 +52,12 @@ The honest edges, stated where they live:
 """
 
 import asyncio
-import json
 from datetime import timezone
 from typing import Protocol
 
 from sqlalchemy.orm import Session
 
-from gpa.config import Settings
+from gpa.config import Settings, get_settings
 from gpa.errors import AppError
 from gpa.services import jobs as job_service
 
@@ -192,8 +191,12 @@ class ArqJobQueue:
 
         async def _enqueue() -> str:
             pool = await self._get_pool()
+            # The payload leaves this process (it rests in
+            # Redis): sealed at the serialisation boundary
+            # (B-166, §6A.4), exactly like the job table's.
             job = await pool.enqueue_job(
-                ARQ_FUNCTION_NAME, kind, json.dumps(payload or {}), **options
+                ARQ_FUNCTION_NAME, kind,
+                job_service.seal_payload(payload or {}, settings), **options,
             )
             return job.job_id
 
@@ -255,7 +258,8 @@ async def run_gpa_job(ctx: dict, kind: str, payload_json: str) -> None:
     """
     db = ctx["database"].session()
     try:
-        execute_payload(db, kind, json.loads(payload_json or "{}"))
+        settings = ctx.get("settings") or get_settings()
+        execute_payload(db, kind, job_service.open_payload(payload_json, settings))
     finally:
         db.close()
 
@@ -276,19 +280,32 @@ async def arq_startup(ctx: dict) -> None:
     from gpa.services import notifications as _notifications  # noqa: F401
     from gpa.services import outbound as _outbound  # noqa: F401
     from gpa.services import reconcile as _reconcile  # noqa: F401
+    from gpa.services import repair as _repair  # noqa: F401
     from gpa.services import retention as _retention  # noqa: F401
     from gpa.services import transcribe as _transcribe  # noqa: F401
     from gpa.services import vision as _vision  # noqa: F401
     from gpa.config import get_settings
-    from gpa.storage import LocalStorage, set_storage
+    from gpa.storage import set_storage
 
     settings = ctx.get("settings") or get_settings()
     ctx["settings"] = settings
     ai_client.set_client(ai_client.build_client(settings))
+    # The job chassis' sealing settings (B-166), as in the
+    # other composition roots.
+    job_service.set_settings(settings)
+    # The field-encryption service's settings (B-167).
+    from gpa.crypto import fields as _fields
+
+    _fields.set_settings(settings)
+    from gpa.services import audit as _audit
+
+    _audit.set_chain_secret(settings.secret_key)
     mailer.set_transport(mailer.build_transport(settings))
     messenger_transport.set_transport(messenger_transport.build_transport(settings))
     _outbound.set_settings(settings)
-    set_storage(LocalStorage(settings.storage_dir))
+    from gpa.storage.encrypted import build_storage
+
+    set_storage(build_storage(settings))
     database = Database(settings.database_url)
     database.create_all()
     ctx["database"] = database

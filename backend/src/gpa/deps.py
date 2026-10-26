@@ -43,6 +43,9 @@ class Principal:
     seat_role: str | None = None
     scopes: set[str] | None = None
     key_id: str | None = None
+    # The refresh family this access token was minted in (B-174),
+    # when known — a label for the session list's "current" mark.
+    session_family_id: str = ""
     user: User | None = field(default=None, repr=False)
 
     @property
@@ -104,7 +107,10 @@ def get_principal(request: Request, db: Session = Depends(get_db)) -> Principal:
         user = db.get(User, claims["sub"])
         if user is None:
             raise AppError("not_authenticated")
-        return Principal(kind="user", user_id=user.id, scopes=None, user=user)
+        return Principal(
+            kind="user", user_id=user.id, scopes=None, user=user,
+            session_family_id=str(claims.get("fam") or ""),
+        )
     raise AppError("not_authenticated")
 
 

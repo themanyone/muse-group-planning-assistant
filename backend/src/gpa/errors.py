@@ -39,6 +39,26 @@ ERROR_CODES: dict[str, tuple[int, str]] = {
     "fetch_blocked": (422, "That address may not be fetched"),
     "fetch_failed": (502, "That page could not be read"),
     "internal_error": (500, "Something went wrong on our side"),
+    # The internal API's own codes (Phase 17, B-162/B-164): a
+    # part of the system asking another part for something it
+    # may not have, in a shape it cannot prove, or twice.
+    "internal_unknown_operation": (404, "That internal operation does not exist"),
+    "internal_scope_denied": (403, "That part of the system does not hold the needed internal scope"),
+    "internal_bad_payload": (422, "That internal call's payload could not be understood"),
+    "internal_tampered": (400, "That internal message failed its integrity check"),
+    "recovery_code_invalid": (401, "That recovery code is not valid"),
+    "uncommitted_writes": (500, "The request finished with uncommitted writes"),
+    "draft_conflict": (409, "That draft changed on the server since it was opened"),
+    "upload_incomplete": (409, "That upload is still missing parts"),
+    "upload_hash_mismatch": (422, "The assembled upload does not match its declared hash"),
+    "upload_part_size": (422, "That part is not the size its position requires"),
+    "internal_bad_signature": (401, "That internal message's signature did not verify"),
+    "internal_replayed": (401, "That internal message was already seen"),
+    "internal_bad_key": (500, "The internal key configuration is invalid"),
+    # Advanced account security (Phase 17, B-174).
+    "account_locked": (423, "This account is temporarily locked"),
+    "mfa_code_invalid": (401, "That authentication code did not match"),
+    "password_too_weak": (422, "That password is not strong enough"),
 }
 
 

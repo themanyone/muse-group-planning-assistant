@@ -1,0 +1,22 @@
+# Pre-commit hooks mirroring CI (roadmap B-178). Install with:
+#   uv run pre-commit install
+# The hooks run the SAME doors CI runs — the quality gate's
+# ruff half and the two AST gates — never a private variant.
+repos:
+  - repo: local
+    hooks:
+      - id: quality-gate
+        name: quality gate (ruff enforced set)
+        entry: uv run python scripts/quality_gate.py
+        language: system
+        pass_filenames: false
+      - id: comment-gate
+        name: comment + documentation gate (B-176)
+        entry: uv run python -m pytest tests/test_comment_gate.py -q
+        language: system
+        pass_filenames: false
+      - id: platform-audit
+        name: platform audit (B-177)
+        entry: uv run python scripts/platform_audit.py
+        language: system
+        pass_filenames: false

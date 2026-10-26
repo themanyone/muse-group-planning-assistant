@@ -63,6 +63,33 @@ class LocalStorage:
             raise
         return key
 
+    def put_at(self, key: str, data: bytes) -> str:
+        """Store bytes under an EXPLICIT key (B-168).
+
+        The encrypted driver computes the content address of
+        the PLAINTEXT itself, then needs the sealed blob filed
+        under that key — a write put_bytes (which addresses by
+        the bytes it is handed) cannot express. Same atomic
+        write, same idempotence; the key is validated like
+        every key."""
+        validate_key(key)
+        path = self._path_for(key)
+        if path.exists():
+            return key
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        return key
+
     def get_bytes(self, key: str) -> bytes:
         """Fetch bytes by key; missing keys are a clean 404."""
         path = self._path_for(key)

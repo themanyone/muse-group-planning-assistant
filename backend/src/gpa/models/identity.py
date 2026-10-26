@@ -15,7 +15,7 @@ that shape these tables:
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from gpa.db import Base
@@ -45,6 +45,19 @@ class User(Base):
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     locale: Mapped[str] = mapped_column(String(16), default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    # Advanced account security (B-174). The TOTP secret is stored
+    # SEALED (services/sealing.py, keyed from the environment) —
+    # never plaintext, never hashed (verification must read it).
+    totp_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mfa_enabled: Mapped[int] = mapped_column(Integer, default=0)
+    # The last TOTP time-step a code was accepted for. A code is
+    # single-use per step: replaying the same code inside its own
+    # 30-second window is refused by comparing against this.
+    mfa_last_step: Mapped[int] = mapped_column(Integer, default=-1)
+    # Progressive lockout (B-174): consecutive failed password
+    # sign-ins, and the moment the current lock lifts.
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class OneTimeToken(Base):
@@ -82,6 +95,33 @@ class RefreshToken(Base):
     # the chain that makes reuse of an old token provable.
     replaced_by_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    # Which device/browser this session was born on (B-174's
+    # session list): the caller's own words from their request
+    # headers, kept so the person can recognise — and revoke —
+    # each signed-in device. Rotation copies them forward: one
+    # family is one device.
+    user_agent: Mapped[str] = mapped_column(String(240), default="")
+    ip_address: Mapped[str] = mapped_column(String(64), default="")
+
+
+class UserDevice(Base):
+    """A device/browser a person has signed in from (B-174).
+
+    Login-anomaly bookkeeping: a successful sign-in from a pair
+    (IP, user-agent) this table has never seen — when the person
+    already HAS known devices — earns them a notice through the
+    outbox, so a stranger signing in as them does not pass
+    quietly. First sightings are recorded here either way.
+    """
+
+    __tablename__ = "user_devices"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    ip_address: Mapped[str] = mapped_column(String(64), default="")
+    user_agent: Mapped[str] = mapped_column(String(240), default="")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
 
 
 class ApiKey(Base):

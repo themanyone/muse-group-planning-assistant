@@ -99,7 +99,11 @@ def test_arq_submit_translates_the_submission(tmp_path, db_session):
     function, args, kwargs = pool.calls[0]
     assert function == jobqueue.ARQ_FUNCTION_NAME
     assert args[0] == "notify"
-    assert json.loads(args[1]) == {"to": "mara@example.org"}
+    # The payload crosses to Redis sealed (B-166: data leaving
+    # the process is envelope-encrypted at the serialisation
+    # boundary) — unreadable on the wire, whole on arrival.
+    assert "mara@example.org" not in args[1]
+    assert job_service.open_payload(args[1], settings) == {"to": "mara@example.org"}
     # Our naive-UTC run_at is pinned to the zone for arq, and
     # our attempt cap becomes arq's own.
     assert kwargs["_defer_until"].isoformat() == "2026-11-05T09:30:00+00:00"

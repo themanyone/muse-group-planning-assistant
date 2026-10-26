@@ -32,6 +32,7 @@ def get_storage() -> StorageBackend:
     global _storage
     if _storage is None:
         from gpa.config import get_settings
+        from gpa.storage.encrypted import build_storage
 
-        _storage = LocalStorage(get_settings().storage_dir)
+        _storage = build_storage(get_settings())
     return _storage

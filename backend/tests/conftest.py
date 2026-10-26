@@ -38,7 +38,8 @@ PG_URL = os.environ.get("GPA_TEST_PG_URL", "")
 # a test name of None skips the whole file in PG mode. Every
 # entry's guarantee is re-proven on PostgreSQL in
 # tests/test_postgres_parity.py (migration chain, mover,
-# sealed-storage raw read, erasure service path).
+# sealed-storage raw read, erasure service path, field seals
+# and group keys, backup key material, data repair).
 PG_FILE_TESTS = {
     # The backup/restore scripts speak SQLite's online-backup
     # API to a file; the drill is a file drill by definition.
@@ -72,6 +73,27 @@ PG_FILE_TESTS = {
     # the parity test reads the raw stored column on PG.
     ("test_integrations_framework.py", "test_config_is_sealed_at_rest_and_reads_back"),
     ("test_webhooks_in.py", "test_secrets_are_nowhere_in_the_database_file"),
+    # B-167's acceptance greps the SQLite file (and its WAL)
+    # byte for byte; there is no file on a server engine. The
+    # parity twin reads the RAW stored columns on PostgreSQL
+    # and finds the same seals and the same absences.
+    ("test_field_encryption.py", "test_raw_database_grep_finds_nothing"),
+    # The wrapped/distinct key assertions are engine-free, but
+    # the test's closing proof greps the file for the unwrapped
+    # keys; the parity twin sweeps the stored wrapped values.
+    ("test_field_encryption.py", "test_per_group_keys_are_wrapped_and_distinct"),
+    # The B-146 bundle is a SQLite-deployment artifact and
+    # backup.py refuses a PostgreSQL URL in plain words; the
+    # parity twin proves the refusal AND that the server's
+    # stored escrow/key values hold no key material either.
+    ("test_key_management.py", "test_backup_bundle_holds_no_key_material"),
+    # Plants orphaned provenance through a raw connection
+    # with no FK enforcement — the lax road that leaves such
+    # rows on SQLite. PostgreSQL enforces the foreign keys
+    # server-side, so that damage class cannot be planted
+    # (or exist) there; the parity twin plants every other
+    # repairable kind and proves the orphan insert is refused.
+    ("test_error_correction.py", "test_data_repair_fixes_forward_and_names_every_fix"),
 }
 
 
@@ -122,6 +144,17 @@ def _pg_reset() -> None:
         connection.execute(
             text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE")
         )
+        # A fresh SQLite file — the thing this reset promises
+        # to mirror — also has no alembic_version table, but
+        # that table is not a model table, so the TRUNCATE
+        # above never touches it. A test that stamps a
+        # revision (B-172's unknown-revision refusal plants
+        # '9999_from_the_future') would otherwise poison every
+        # later test on the shared database — and did, at the
+        # Phase 17 gate: the recovery tests scored 'refuse' on
+        # a healthy database because the stamp outlived the
+        # test that planted it. Drop it with the rest.
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
 
 
 # Modules whose world is MODULE-scoped by design (a fixture

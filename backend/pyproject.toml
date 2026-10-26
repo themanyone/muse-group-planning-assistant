@@ -43,6 +43,7 @@ dependencies = [
     # so the driver is a runtime dependency, not a dev extra.
     # SQLite stays the default; the URL is the only switch.
     "psycopg[binary]>=3.1",
+    "cryptography>=50.0.2",
 ]
 
 [project.optional-dependencies]
@@ -74,3 +75,44 @@ packages = ["src/gpa"]
 # installs it editable, so no path tricks are needed here).
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pre-commit>=4.7.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.2",
+]
+
+[tool.ruff]
+# Production-quality pipeline (B-178): the enforced lint set is
+# the correctness core — E9 (syntax) + F (pyflakes). The wider
+# rule families and `ruff format` are recorded as a measured
+# ratchet in QUALITY_PIPELINE.md, not enforced yet; a mass
+# reformat would bury the team's comment-heavy house style
+# (D-26) in churn. line-length matches the tree's hand wrap.
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E9", "F"]
+
+[tool.mypy]
+# mypy runs --strict over services/, ai/, internal/, crypto/
+# from scripts/quality_gate.py (the ratchet door); this section
+# carries the shared posture for ad-hoc runs.
+python_version = "3.12"
+strict = true
+mypy_path = ["src"]
+
+[tool.coverage.run]
+# Coverage (B-178): measured at phase gates; per-module floors
+# live in QUALITY_PIPELINE.md. The security and durability
+# suites are excluded from averages by policy (they must be
+# complete, not averaged) — see the pipeline doc.
+source = ["src/gpa"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

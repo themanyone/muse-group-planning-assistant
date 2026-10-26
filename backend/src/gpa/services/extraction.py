@@ -32,6 +32,8 @@ from gpa.ai import client as ai_client
 from gpa.ai import extraction as pipeline
 from gpa.config import Settings
 from gpa.errors import AppError
+from gpa.internal.client import call_internal
+from gpa.models.core import Job
 from gpa.models.groups import Candidate, Group
 from gpa.models.sources import Provenance, Source
 from gpa.services import audit, jobs as job_service, quality, sources as source_service
@@ -73,21 +75,25 @@ def request_extraction(
             "validation_error",
             detail=f"Unknown extraction kinds: {', '.join(unknown)}.",
         )
-    job = job_service.enqueue(
-        db, settings, kind=JOB_KIND,
+    data = call_internal(
+        db, caller="extraction", operation="ai.submit_job",
         payload={
-            "group_id": group.id,
-            "source_id": source.id,
-            "kinds": chosen,
-            "requested_by": actor_label,
+            "kind": JOB_KIND,
+            "payload": {
+                "group_id": group.id,
+                "source_id": source.id,
+                "kinds": chosen,
+                "requested_by": actor_label,
+            },
         },
     )
+    job = db.get(Job, data["job_id"])
     # Stamp the job's own id into its payload (enqueue commits
     # first — the id only exists afterwards) so the candidates
     # the run creates can carry the job that made them (B-045).
-    payload = json.loads(job.payload_json or "{}")
+    payload = job_service.payload_of(job)
     payload["job_id"] = job.id
-    job.payload_json = json.dumps(payload)
+    job_service.store_payload(job, payload)
     db.commit()
     audit.record(
         db, actor=actor_label, action="extraction.requested",
@@ -280,16 +286,18 @@ def run_extraction(
 
     # Machine drafts landing in the queue are announced
     # outward in this same transaction (Phase 11, B-128):
-    # candidate.pending, one per draft.
-    from gpa.services import outbound as outbound_service
-
+    # candidate.pending, one per draft — announced through the
+    # internal API (B-162), as every outward word now is.
     for candidate in created:
-        outbound_service.emit(
-            db, group=group, kind="candidate.pending",
-            data={
-                "candidate_id": candidate.id,
-                "kind": candidate.kind,
-                "title": candidate.title,
+        call_internal(
+            db, caller="extraction", operation="integrations.emit",
+            payload={
+                "group_id": group.id, "kind": "candidate.pending",
+                "data": {
+                    "candidate_id": candidate.id,
+                    "kind": candidate.kind,
+                    "title": candidate.title,
+                },
             },
         )
     audit.record(
@@ -336,12 +344,16 @@ def handle_extract(db: Session, payload: dict) -> None:
             requested_by=requested_by, job_id=job_id,
         )
     except BudgetPaused:
-        from gpa.config import get_settings
 
-        job_service.enqueue(
-            db, get_settings(), kind=JOB_KIND,
-            payload={**payload, "deferred_from_budget": True},
-            run_at=usage_service.next_budget_reset(datetime.now(timezone.utc)),
+        call_internal(
+            db, caller="extraction", operation="ai.submit_job",
+            payload={
+                "kind": JOB_KIND,
+                "payload": {**payload, "deferred_from_budget": True},
+                "run_at": usage_service.next_budget_reset(
+                    datetime.now(timezone.utc)
+                ).isoformat(),
+            },
         )
         audit.record(
             db, actor=requested_by, action="extraction.deferred_budget",

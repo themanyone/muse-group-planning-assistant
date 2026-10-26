@@ -152,6 +152,18 @@ def list_event_sources(
         .order_by(EventSourceLink.created_at, EventSourceLink.id)
         .all()
     )
+    # Link quotes are sealed at rest (B-167); open them for
+    # the projection, committed-value style so no flush can
+    # write the opened form back.
+    from sqlalchemy.orm import attributes
+
+    from gpa.crypto import fields
+
+    for row in rows:
+        attributes.set_committed_value(
+            row, "quote",
+            fields.open_text(db, context.group.id, "event_link.quote", row.quote),
+        )
     return [source_link_view(row) for row in rows]
 
 
@@ -334,7 +346,7 @@ def generate_image(
     photo. An event with a picture already is a 409."""
     from gpa.services import calendar_views
 
-    flyer = event_service.generate_event_image(
+    event_service.generate_event_image(
         db, storage=request.app.state.storage,
         actor_label=principal.label, group=context.group,
         event_id=event_id, description=body.description,

@@ -26,12 +26,60 @@ from sqlalchemy.orm import Session
 from gpa.errors import AppError
 from gpa.models.groups import Candidate, Group
 from gpa.models.sources import Provenance
-from gpa.services import audit, quality
+from gpa.services import audit, quality, sources as source_service
 
 # Statuses a reviewer may still act on (edit / reject / merge /
 # approve). Decided rows — approved, rejected, merged,
 # superseded — are history and refuse further decisions.
 OPEN_STATUSES = ("pending", "edited")
+
+
+def create_candidate(
+    db: Session,
+    *,
+    group_id: str,
+    kind: str,
+    title: str,
+    created_by: str,
+    status: str = "pending",
+    source_id: str | None = None,
+    draft: dict | None = None,
+    confidence: float | None = None,
+    prompt_name: str = "",
+    prompt_version: int | None = None,
+    job_id: str | None = None,
+    flags: list | None = None,
+) -> Candidate:
+    """Write one candidate row and flush it (the id exists).
+
+    The one construction every drafting road shares (B-162):
+    the extraction pipeline builds its machine drafts inline
+    (its own module, its own loop), but every OTHER module that
+    drafts a candidate — a seat's stub from groups, an outside
+    edit arriving through integrations, a summary's candidates
+    from memory — comes through here, directly or through the
+    internal API's ``candidates.create`` operation, so the row's
+    shape has exactly one author. The caller owns the commit,
+    the audit row, and any provenance: creation only writes the
+    candidate itself.
+    """
+    candidate = Candidate(
+        group_id=group_id,
+        kind=kind,
+        title=title[:240],
+        created_by=created_by,
+        status=status,
+        source_id=source_id,
+        draft_json=json.dumps(draft or {}),
+        confidence=confidence,
+        prompt_name=prompt_name,
+        prompt_version=prompt_version,
+        job_id=job_id,
+        flags_json=json.dumps(flags or []),
+    )
+    db.add(candidate)
+    db.flush()  # the id exists before provenance points at it
+    return candidate
 
 
 def get_candidate(db: Session, group: Group, candidate_id: str) -> Candidate:
@@ -103,7 +151,7 @@ def provenance_of(db: Session, candidate: Candidate) -> list[dict]:
                 "field": row.field,
                 "chunk_id": row.chunk_id,
                 "chunk_position": None,
-                "quote": row.quote,
+                "quote": source_service.open_quote(db, row),
                 # A vision row's evidence is its region (B-063):
                 # the box rides along so the queue can highlight
                 # the rectangle the field was read from.

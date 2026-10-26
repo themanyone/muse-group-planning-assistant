@@ -15,7 +15,9 @@ from gpa.db import get_db
 from gpa.ratelimit import auth_rate_limit
 from gpa.schemas.identity import (
     LoginRequest,
+    LoginResponse,
     MagicLinkRequest,
+    MfaChallengeRequest,
     RefreshRequest,
     RegisterRequest,
     SessionResponse,
@@ -31,6 +33,15 @@ def _session(access: str, refresh: str, user_id: str) -> SessionResponse:
     return SessionResponse(access_token=access, refresh_token=refresh, user_id=user_id)
 
 
+def _device(request: Request) -> dict:
+    """The caller's device words (B-174): client address + the
+    user-agent header, for the session list and anomaly notice."""
+    return {
+        "ip_address": request.client.host if request.client else "",
+        "user_agent": request.headers.get("user-agent", ""),
+    }
+
+
 @router.post("/register", response_model=SessionResponse, status_code=201, dependencies=[Depends(auth_rate_limit)])
 def register(body: RegisterRequest, request: Request, db: Session = Depends(get_db)):
     """Create an account and sign the new user straight in."""
@@ -38,15 +49,34 @@ def register(body: RegisterRequest, request: Request, db: Session = Depends(get_
         db, email=body.email, password=body.password, name=body.name,
         timezone=body.timezone, locale=body.locale,
     )
-    access, refresh = identity_service.issue_session(db, request.app.state.settings, user)
+    access, refresh = identity_service.issue_session(
+        db, request.app.state.settings, user, **_device(request)
+    )
     return _session(access, refresh, user.id)
 
 
-@router.post("/login", response_model=SessionResponse, dependencies=[Depends(auth_rate_limit)])
+@router.post("/login", response_model=LoginResponse, dependencies=[Depends(auth_rate_limit)])
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """Sign in with email + password."""
+    """Sign in with email + password. An account with MFA on
+    (B-174) earns a challenge here, not a session — the session
+    arrives at /login/mfa when the authenticator code answers."""
     user = identity_service.authenticate(db, email=body.email, password=body.password)
-    access, refresh = identity_service.issue_session(db, request.app.state.settings, user)
+    if user.mfa_enabled:
+        challenge = identity_service.begin_mfa_challenge(db, user)
+        return LoginResponse(user_id=user.id, mfa_required=True, mfa_challenge=challenge)
+    access, refresh = identity_service.issue_session(
+        db, request.app.state.settings, user, **_device(request)
+    )
+    return LoginResponse(access_token=access, refresh_token=refresh, user_id=user.id)
+
+
+@router.post("/login/mfa", response_model=SessionResponse, dependencies=[Depends(auth_rate_limit)])
+def login_mfa(body: MfaChallengeRequest, request: Request, db: Session = Depends(get_db)):
+    """Answer a sign-in MFA challenge; receive the session."""
+    access, refresh, user = identity_service.complete_mfa_challenge(
+        db, request.app.state.settings, body.challenge_token, body.code,
+        **_device(request),
+    )
     return _session(access, refresh, user.id)
 
 
@@ -65,6 +95,13 @@ def magic_link_consume(body: TokenConsumeRequest, request: Request, db: Session 
         db, request.app.state.settings, body.token
     )
     return _session(access, refresh, user.id)
+
+
+# NOTE: magic-link sign-in stays a full sign-in even with MFA on
+# (B-174 boundary, recorded in the memory map): the link proves
+# control of the account's mailbox, which is itself a factor.
+# The MFA challenge guards the password road, where guessing
+# is the threat the lockout + second factor answer.
 
 
 @router.post("/refresh", response_model=SessionResponse)

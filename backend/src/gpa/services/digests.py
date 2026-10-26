@@ -39,6 +39,7 @@ from gpa.models.groups import Group, Membership
 from gpa.models.identity import User, now_utc
 from gpa.models.core import Job
 from gpa.models.notifications import Digest
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services import jobs as job_service
 from gpa.services import notifications as notify_service
@@ -261,8 +262,8 @@ def _job_group_id(job: Job) -> str | None:
     """A digest job's group, from its payload (jobs name their
     group in the payload — the chassis' addressing rule)."""
     try:
-        return json.loads(job.payload_json or "{}").get("group_id")
-    except json.JSONDecodeError:
+        return job_service.payload_of(job).get("group_id")
+    except (json.JSONDecodeError, AppError):
         return None
 
 
@@ -275,9 +276,13 @@ def handle_digest_run(db: Session, payload: dict) -> None:
     if group is None or not group.digest_enabled:
         return
     run_digest(db, actor_label="system:digest", group=group)
-    job_service.enqueue(
-        db, _settings(), kind=DIGEST_JOB_KIND,
-        payload={"group_id": group.id}, run_at=next_run_at(group),
+    call_internal(
+        db, caller="notifications", operation="jobs.enqueue",
+        payload={
+            "kind": DIGEST_JOB_KIND,
+            "payload": {"group_id": group.id},
+            "run_at": next_run_at(group).isoformat(),
+        },
     )
 
 

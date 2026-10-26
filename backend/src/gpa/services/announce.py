@@ -16,7 +16,7 @@ notification outbox to exactly the event's RSVP'd people.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
@@ -25,9 +25,9 @@ from gpa.errors import AppError
 from gpa.models.events import AnnouncementDraft, Event, EventChange
 from gpa.models.groups import Group
 from gpa.models.identity import now_utc
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services import events as event_service
-from gpa.services import notifications as notify_service
 
 # The fields whose change is material — the same set B-050's
 # edit engine marks needs_reannounce for, plus status (a
@@ -168,19 +168,23 @@ def approve_announcement(
     if draft.sent_at is not None:
         raise AppError("conflict", detail="That announcement has already been sent.")
     event = db.get(Event, draft.event_id)
-    recipients = notify_service.event_recipients(db, draft.event_id)
-    for recipient in recipients:
-        notify_service.create_notification(
-            db,
-            group=group,
-            recipient_user=recipient["user"],
-            recipient_label=recipient["label"],
-            recipient_email=recipient["email"],
-            kind="change.announcement",
-            subject=f"Update: {event.title}",
-            body_text=draft.body,
-            event_id=event.id,
-        )
+    # Recipients, preferences, and quiet hours are the
+    # notifications module's work — asked for through the
+    # internal API (B-162), in this same transaction. The
+    # result's created ids are the audit's recipient count:
+    # the people actually told (a muted member is not a
+    # recipient of a telling that never happened).
+    data = call_internal(
+        db, caller="events", operation="notify.request",
+        payload={
+            "group_id": group.id,
+            "audience": {"event_id": draft.event_id},
+            "kind": "change.announcement",
+            "subject": f"Update: {event.title}",
+            "body_text": draft.body,
+            "event_id": event.id,
+        },
+    )
     draft.sent_at = now_utc()
     draft.sent_by = actor_label
     if event is not None:
@@ -188,7 +192,7 @@ def approve_announcement(
     audit.record(
         db, actor=actor_label, action="announcement.approved",
         group_id=group.id, entity_type="announcement_draft", entity_id=draft.id,
-        detail={"event_id": draft.event_id, "recipients": len(recipients)},
+        detail={"event_id": draft.event_id, "recipients": len(data["created_ids"])},
     )
     db.commit()
     return draft

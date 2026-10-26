@@ -145,6 +145,42 @@ def _by_ids(db: Session, model: type, ids: set[str]) -> list[dict]:
     return [_serialise(row) for row in rows]
 
 
+def _open_export_rows(db: Session, group_id: str, payload: dict) -> dict:
+    """Open B-167's sealed fields inside an export payload.
+
+    The archive is the owner's own data, readable — that is
+    its purpose — so the fields sealed at rest (chunk text +
+    senders, provenance quotes, event-link quotes) are opened
+    as the archive is assembled. Every row in a group export
+    belongs to the exporting group, so the group key that
+    sealed them is this one."""
+    from gpa.crypto import fields
+
+    for row in payload.get("source_chunks", []):
+        row["text"] = fields.open_text(db, group_id, "chunk.text", row.get("text", ""))
+        if row.get("sender") is not None:
+            row["sender"] = fields.open_text(
+                db, group_id, "chunk.sender", row["sender"]
+            )
+    for row in payload.get("provenance", []):
+        row["quote"] = fields.open_text(
+            db, group_id, "provenance.quote", row.get("quote", "")
+        )
+    for row in payload.get("event_source_links", []):
+        row["quote"] = fields.open_text(
+            db, group_id, "event_link.quote", row.get("quote", "")
+        )
+    # Flyer transcripts joined the sealed set at B-180 (the
+    # gate drill found them resting in plaintext); the archive
+    # opens them like every other sealed field above.
+    for row in payload.get("flyers", []):
+        if row.get("transcript"):
+            row["transcript"] = fields.open_text(
+                db, group_id, "flyer.transcript", row["transcript"]
+            )
+    return payload
+
+
 # ------------------------------------------------------------------
 # Export
 # ------------------------------------------------------------------
@@ -251,7 +287,7 @@ def build_export(
             elif table in models:
                 payload[table] = _by_ids(db, models[table], plan.get(table, set()))
             claimed.add(table)
-        add_json(filename, payload)
+        add_json(filename, _open_export_rows(db, group.id, payload))
 
     # Mail events name their notification by a plain column
     # (no FK), so the plan cannot reach them; they ride with
@@ -278,7 +314,7 @@ def build_export(
         if table not in claimed and table in models
     }
     if remaining:
-        add_json("remaining.json", remaining)
+        add_json("remaining.json", _open_export_rows(db, group.id, remaining))
 
     # The calendar, in the feed's own convention: published +
     # cancelled (drafts ride in events.json, as records).
@@ -507,15 +543,26 @@ def erase_group(
             .delete(synchronize_session=False)
         )
 
-    # Queued jobs name the group only inside their payload
-    # JSON — a digest chain or extraction for a group that no
-    # longer exists must never run.
+    # Queued jobs name the group only inside their payload —
+    # a digest chain or extraction for a group that no
+    # longer exists must never run. Payloads are sealed at
+    # rest (B-166), so attribution opens them (the chassis'
+    # payload_of law) rather than pattern-matching the stored
+    # text: a SQL LIKE over ciphertext would find nothing
+    # and leave a dead group's jobs queued forever (the
+    # B-167 regression this replaces).
     from gpa.models.core import Job
+    from gpa.services import jobs as job_service
 
+    doomed = [
+        job.id
+        for job in db.query(Job).all()
+        if job_service.payload_of(job).get("group_id") == group_id
+    ]
     counts["jobs"] = (
-        db.query(Job)
-        .filter(Job.payload_json.like(f"%{group_id}%"))
-        .delete(synchronize_session=False)
+        db.query(Job).filter(Job.id.in_(doomed)).delete(synchronize_session=False)
+        if doomed
+        else 0
     )
 
     # The audit keeps only the fact (B-143): every audit row

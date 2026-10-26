@@ -1,0 +1,36 @@
+# Group Planning Assistant — cross-platform CI matrix (roadmap B-177).
+#
+# The same suite runs on Linux, Windows, and macOS. This file
+# ships in the repo (and in every release ZIP); the project is
+# developed locally and pushed only on the owner's word, so the
+# matrix runs wherever the repo is hosted — and a fresh
+# checkout's test.sh reproduces it locally on any of the three
+# OSes (B-178). No Docker anywhere (standing law): uv installs
+# the locked environment natively on each runner.
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  suite:
+    name: suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Install the locked environment
+        run: uv sync --extra dev
+      - name: Quality gate (ruff + mypy strict ratchet)
+        run: uv run python scripts/quality_gate.py --mypy
+      - name: Run the full suite
+        # --basetemp lives under the workspace: some runners'
+        # temp filesystems are small, and pytest's default
+        # basetemp sits there (the B-156-era /tmp lesson).
+        run: uv run pytest -q --basetemp=.pytest-tmp

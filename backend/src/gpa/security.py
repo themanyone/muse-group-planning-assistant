@@ -72,12 +72,16 @@ def _b64url_decode(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
-def issue_access_token(secret: str, user_id: str, minutes: int = 15) -> str:
+def issue_access_token(secret: str, user_id: str, minutes: int = 15, family_id: str = "") -> str:
     """Mint a signed access token for one user.
 
     Claims: ``sub`` (the user id), ``type`` ("access" — refresh
     tokens are NOT JWTs here; they are opaque rows, see services),
-    ``exp``/``iat``, and a unique ``jti``.
+    ``exp``/``iat``, and a unique ``jti``. When the session's
+    refresh family is known it rides as ``fam`` (B-174) so the
+    session list can mark which signed-in device is THIS one;
+    it is a label, never a credential — the refresh token itself
+    stays the family's only key.
     """
     now = int(time.time())
     header = {"alg": "HS256", "typ": "JWT"}
@@ -88,6 +92,8 @@ def issue_access_token(secret: str, user_id: str, minutes: int = 15) -> str:
         "exp": now + minutes * 60,
         "jti": uuid.uuid4().hex,
     }
+    if family_id:
+        payload["fam"] = family_id
     signing_input = (
         f"{_b64url_encode(json.dumps(header).encode())}"
         f".{_b64url_encode(json.dumps(payload).encode())}"

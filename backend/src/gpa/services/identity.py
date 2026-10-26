@@ -23,7 +23,7 @@ from gpa.security import (
     new_token,
     verify_password,
 )
-from gpa.services import audit, mail
+from gpa.services import account_security, audit, mail
 
 # Deliberately small email shape check (see schemas/identity.py):
 # something @ something . something, no spaces.
@@ -73,6 +73,7 @@ def register_user(
     profile are set on that same account, so invites keep working.
     """
     email = normalize_email(email)
+    account_security.validate_password_policy(password, email=email)
     existing = get_user_by_email(db, email)
     if existing is not None and existing.password_hash is not None:
         raise AppError("email_taken")
@@ -113,21 +114,40 @@ def update_profile(
 
 def authenticate(db: Session, *, email: str, password: str) -> User:
     """Check email + password. One vague error for every failure —
-    the response must not reveal whether the account exists."""
+    the response must not reveal whether the account exists.
+
+    B-174 rides on this door: a locked account is refused before
+    the password is even checked (in its own plain words), a
+    failure is counted toward the progressive lockout, and a
+    success clears the count."""
     user = get_user_by_email(db, normalize_email(email))
-    if user is None or user.password_hash is None or not verify_password(user.password_hash, password):
+    if user is None:
         raise AppError("invalid_credentials")
+    account_security.assert_not_locked(user)
+    if user.password_hash is None or not verify_password(user.password_hash, password):
+        account_security.note_login_failure(db, user)
+        raise AppError("invalid_credentials")
+    account_security.note_login_success(db, user)
     return user
 
 
 # --- Sessions (B-013) -------------------------------------------------
 
 
-def issue_session(db: Session, settings: Settings, user: User) -> tuple[str, str]:
+def issue_session(
+    db: Session,
+    settings: Settings,
+    user: User,
+    *,
+    ip_address: str = "",
+    user_agent: str = "",
+) -> tuple[str, str]:
     """Start a NEW refresh-token family; return (access, refresh).
 
     The refresh token itself is returned raw exactly once; only its
-    hash is stored.
+    hash is stored. The caller's device words (B-174) ride on the
+    row — the session list's naming — and the device is recorded
+    for the anomaly notice in the same commit.
     """
     raw_refresh = new_token(48)
     row = RefreshToken(
@@ -135,10 +155,18 @@ def issue_session(db: Session, settings: Settings, user: User) -> tuple[str, str
         family_id=str(uuid.uuid4()),
         token_hash=hash_secret(raw_refresh),
         expires_at=now_utc() + timedelta(days=settings.refresh_token_days),
+        user_agent=(user_agent or "")[:240],
+        ip_address=(ip_address or "")[:64],
     )
     db.add(row)
+    db.flush()
+    account_security.record_device(
+        db, settings, user, ip_address=ip_address, user_agent=user_agent
+    )
     db.commit()
-    access = issue_access_token(settings.secret_key, user.id, settings.access_token_minutes)
+    access = issue_access_token(
+        settings.secret_key, user.id, settings.access_token_minutes, family_id=row.family_id
+    )
     return access, raw_refresh
 
 
@@ -174,12 +202,18 @@ def rotate_refresh(db: Session, settings: Settings, raw_refresh: str) -> tuple[s
         family_id=row.family_id,
         token_hash=hash_secret(new_raw),
         expires_at=now_utc() + timedelta(days=settings.refresh_token_days),
+        # One family is one device (B-174): the device words
+        # carry forward across rotation.
+        user_agent=row.user_agent or "",
+        ip_address=row.ip_address or "",
     )
     db.add(new_row)
     db.flush()
     row.replaced_by_id = new_row.id
     db.commit()
-    access = issue_access_token(settings.secret_key, user.id, settings.access_token_minutes)
+    access = issue_access_token(
+        settings.secret_key, user.id, settings.access_token_minutes, family_id=row.family_id
+    )
     return access, new_raw, user
 
 
@@ -308,6 +342,7 @@ def consume_password_reset(db: Session, raw_token: str, new_password: str) -> Us
     existing session — a reset is also a sign-out-everywhere."""
     row = _consume(db, raw_token, "password_reset")
     user = get_user(db, row.user_id)
+    account_security.validate_password_policy(new_password, email=user.email)
     user.password_hash = hash_password(new_password)
     db.commit()
     revoke_all_sessions(db, user.id)
@@ -318,6 +353,7 @@ def change_password(db: Session, user: User, *, current: str, new: str) -> None:
     """Change password knowing the current one; sessions revoked."""
     if user.password_hash is None or not verify_password(user.password_hash, current):
         raise AppError("invalid_credentials", detail="The current password did not match.")
+    account_security.validate_password_policy(new, email=user.email)
     user.password_hash = hash_password(new)
     db.commit()
     revoke_all_sessions(db, user.id)
@@ -342,6 +378,72 @@ def consume_email_change(db: Session, raw_token: str) -> User:
     db.commit()
     revoke_all_sessions(db, user.id)
     return user
+
+
+# --- MFA challenge (B-174) ---------------------------------------------
+# A password that checks out for an MFA account does NOT yet earn
+# a session: it earns a five-minute, single-use challenge. The
+# session is minted only when a fresh TOTP code answers it.
+
+MFA_CHALLENGE_MINUTES = 5
+
+
+def begin_mfa_challenge(db: Session, user: User) -> str:
+    """Open the post-password MFA challenge; return its raw token
+    (hashed at rest like every one-time token, shown once here)."""
+    raw = new_token(32)
+    row = OneTimeToken(
+        user_id=user.id,
+        purpose="mfa_challenge",
+        token_hash=hash_secret(raw),
+        expires_at=now_utc() + timedelta(minutes=MFA_CHALLENGE_MINUTES),
+    )
+    db.add(row)
+    db.commit()
+    return raw
+
+
+def complete_mfa_challenge(
+    db: Session,
+    settings: Settings,
+    raw_token: str,
+    code: str,
+    *,
+    ip_address: str = "",
+    user_agent: str = "",
+) -> tuple[str, str, User]:
+    """Answer an MFA challenge with a TOTP code; return a session.
+
+    The challenge is checked WITHOUT burning it first: a mistyped
+    code may be retried inside its five minutes (the auth rate
+    limiter guards the door). A correct code burns the challenge,
+    spends its TOTP step (no replay), clears the login-failure
+    count, and mints the session — all in commits that land
+    before the answer (B-003)."""
+    row = (
+        db.query(OneTimeToken)
+        .filter(
+            OneTimeToken.token_hash == hash_secret(raw_token),
+            OneTimeToken.purpose == "mfa_challenge",
+        )
+        .one_or_none()
+    )
+    if row is None:
+        raise AppError("token_invalid")
+    if row.used_at is not None:
+        raise AppError("token_reused")
+    if row.expires_at < now_utc():
+        raise AppError("token_expired")
+    user = get_user(db, row.user_id)
+    step = account_security.verify_user_code(settings, user, code)
+    row.used_at = now_utc()
+    user.mfa_last_step = step
+    account_security.note_login_success(db, user)
+    db.commit()
+    access, refresh = issue_session(
+        db, settings, user, ip_address=ip_address, user_agent=user_agent
+    )
+    return access, refresh, user
 
 
 # --- API keys (B-014) ---------------------------------------------------

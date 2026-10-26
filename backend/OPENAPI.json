@@ -715,6 +715,81 @@
         "title": "AuditEntryResponse",
         "type": "object"
       },
+      "AutosaveConflict": {
+        "properties": {
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "payload",
+          "version",
+          "updated_at"
+        ],
+        "title": "AutosaveConflict",
+        "type": "object"
+      },
+      "AutosaveRequest": {
+        "properties": {
+          "base_version": {
+            "default": 0,
+            "title": "Base Version",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          }
+        },
+        "required": [
+          "payload"
+        ],
+        "title": "AutosaveRequest",
+        "type": "object"
+      },
+      "AutosaveResponse": {
+        "properties": {
+          "conflicts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AutosaveConflict"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "payload",
+          "version",
+          "updated_at"
+        ],
+        "title": "AutosaveResponse",
+        "type": "object"
+      },
       "AvailabilityMarkRequest": {
         "properties": {
           "can": {
@@ -867,6 +942,36 @@
           "paid_cents"
         ],
         "title": "BalanceResponse",
+        "type": "object"
+      },
+      "BeginUploadRequest": {
+        "properties": {
+          "chunk_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Chunk Bytes",
+            "type": "integer"
+          },
+          "filename": {
+            "default": "upload",
+            "title": "Filename",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "total_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Total Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_bytes",
+          "chunk_bytes",
+          "sha256"
+        ],
+        "title": "BeginUploadRequest",
         "type": "object"
       },
       "BriefingResponse": {
@@ -5087,6 +5192,63 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LoginResponse": {
+        "description": "What password sign-in returns (B-174). Without MFA this is\nthe ordinary session; with MFA on, the tokens stay empty and\nthe answer carries ``mfa_required`` plus the single-use\nchallenge the authenticator code must answer.",
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
+          },
+          "mfa_challenge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Challenge"
+          },
+          "mfa_required": {
+            "default": false,
+            "title": "Mfa Required",
+            "type": "boolean"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "LoginResponse",
+        "type": "object"
+      },
       "MagicLinkRequest": {
         "description": "Ask for a sign-in link by email (B-012).",
         "properties": {
@@ -5596,6 +5758,91 @@
           "openapi"
         ],
         "title": "MetaResponse",
+        "type": "object"
+      },
+      "MfaChallengeRequest": {
+        "description": "Answer a sign-in MFA challenge with an authenticator code.",
+        "properties": {
+          "challenge_token": {
+            "title": "Challenge Token",
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_token",
+          "code"
+        ],
+        "title": "MfaChallengeRequest",
+        "type": "object"
+      },
+      "MfaCodeRequest": {
+        "description": "A bare authenticator code (confirm enrolment / disable).",
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "MfaCodeRequest",
+        "type": "object"
+      },
+      "MfaSetupResponse": {
+        "description": "Enrolment's one showing of the secret, plus the QR URI.",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "otpauth_uri": {
+            "title": "Otpauth Uri",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "otpauth_uri"
+        ],
+        "title": "MfaSetupResponse",
+        "type": "object"
+      },
+      "MfaStatusResponse": {
+        "description": "The account's MFA posture (B-174).",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "offer_required": {
+            "title": "Offer Required",
+            "type": "boolean"
+          },
+          "setup_pending": {
+            "title": "Setup Pending",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "setup_pending",
+          "offer_required"
+        ],
+        "title": "MfaStatusResponse",
         "type": "object"
       },
       "MissingRole": {
@@ -8204,6 +8451,55 @@
         "title": "SeatResponse",
         "type": "object"
       },
+      "SessionItemResponse": {
+        "description": "One signed-in device (a refresh-token family, B-174).",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "default": false,
+            "title": "Current",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
+          "family_id": {
+            "title": "Family Id",
+            "type": "string"
+          },
+          "ip_address": {
+            "default": "",
+            "title": "Ip Address",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "user_agent": {
+            "default": "",
+            "title": "User Agent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family_id",
+          "created_at",
+          "last_seen_at",
+          "expires_at",
+          "status"
+        ],
+        "title": "SessionItemResponse",
+        "type": "object"
+      },
       "SessionResponse": {
         "description": "What a successful sign-in returns: short-lived access token,\nrotating refresh token, and who it belongs to.",
         "properties": {
@@ -9544,6 +9840,71 @@
         "title": "TombstoneResponse",
         "type": "object"
       },
+      "UploadStatusResponse": {
+        "properties": {
+          "chunk_bytes": {
+            "title": "Chunk Bytes",
+            "type": "integer"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "parts_missing": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Parts Missing",
+            "type": "array"
+          },
+          "parts_received": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Parts Received",
+            "type": "array"
+          },
+          "parts_total": {
+            "title": "Parts Total",
+            "type": "integer"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_bytes": {
+            "title": "Total Bytes",
+            "type": "integer"
+          },
+          "upload_id": {
+            "title": "Upload Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "upload_id",
+          "filename",
+          "total_bytes",
+          "chunk_bytes",
+          "parts_total",
+          "parts_received",
+          "parts_missing",
+          "status"
+        ],
+        "title": "UploadStatusResponse",
+        "type": "object"
+      },
       "UserResponse": {
         "description": "A person's public profile. Never carries any credential.",
         "properties": {
@@ -9906,13 +10267,55 @@
   "paths": {
     "/api/v1/auth/login": {
       "post": {
-        "description": "Sign in with email + password.",
+        "description": "Sign in with email + password. An account with MFA on\n(B-174) earns a challenge here, not a session \u2014 the session\narrives at /login/mfa when the authenticator code answers.",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/login/mfa": {
+      "post": {
+        "description": "Answer a sign-in MFA challenge; receive the session.",
+        "operationId": "login_mfa_api_v1_auth_login_mfa_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChallengeRequest"
               }
             }
           },
@@ -9940,7 +10343,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Login",
+        "summary": "Login Mfa",
         "tags": [
           "auth"
         ]
@@ -11221,6 +11624,175 @@
         "summary": "Read Audit",
         "tags": [
           "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/audit/verify": {
+      "get": {
+        "description": "Verify the tamper-evident audit hash chain (B-170).\n\nThe chain is instance-wide, so this answers for the whole\nlog, not one group \u2014 an admin of any group may ask. The\nreport names the first broken row when there is one.",
+        "operationId": "verify_audit_chain_api_v1_groups__group_id__audit_verify_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Audit Chain",
+        "tags": [
+          "groups"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/autosaves/{target_kind}/{target_id}": {
+      "get": {
+        "operationId": "read_autosave_api_v1_groups__group_id__autosaves__target_kind___target_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_kind",
+            "required": true,
+            "schema": {
+              "title": "Target Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutosaveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Autosave",
+        "tags": [
+          "durability"
+        ]
+      },
+      "put": {
+        "operationId": "save_autosave_api_v1_groups__group_id__autosaves__target_kind___target_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "target_kind",
+            "required": true,
+            "schema": {
+              "title": "Target Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutosaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutosaveResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Autosave",
+        "tags": [
+          "durability"
         ]
       }
     },
@@ -21733,6 +22305,218 @@
         ]
       }
     },
+    "/api/v1/groups/{group_id}/uploads": {
+      "post": {
+        "operationId": "begin_upload_api_v1_groups__group_id__uploads_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Begin Upload",
+        "tags": [
+          "durability"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/uploads/{upload_id}": {
+      "get": {
+        "operationId": "upload_status_api_v1_groups__group_id__uploads__upload_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "title": "Upload Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Status",
+        "tags": [
+          "durability"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/uploads/{upload_id}/complete": {
+      "post": {
+        "operationId": "complete_upload_api_v1_groups__group_id__uploads__upload_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "title": "Upload Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Upload",
+        "tags": [
+          "durability"
+        ]
+      }
+    },
+    "/api/v1/groups/{group_id}/uploads/{upload_id}/parts/{index}": {
+      "put": {
+        "operationId": "upload_part_api_v1_groups__group_id__uploads__upload_id__parts__index__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "title": "Upload Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Part",
+        "tags": [
+          "durability"
+        ]
+      }
+    },
     "/api/v1/groups/{group_id}/webhook-endpoints": {
       "get": {
         "description": "A group's webhook endpoints (organiser+) \u2014 prefixes\nonly; the secrets were shown once, at creation.",
@@ -22575,6 +23359,134 @@
         ]
       }
     },
+    "/api/v1/users/me/mfa": {
+      "get": {
+        "description": "My two-factor posture: on/off, a setup waiting for its\nconfirming code, and whether my roles make the offer one I\nshould take (owner/admin \u2014 B-174's mandatory-offer).",
+        "operationId": "mfa_status_api_v1_users_me_mfa_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Mfa Status",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/mfa/confirm": {
+      "post": {
+        "description": "Finish enrolment with a code from the authenticator app.",
+        "operationId": "mfa_confirm_api_v1_users_me_mfa_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Confirm",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/mfa/disable": {
+      "post": {
+        "description": "Turn MFA off, proven by a current code. Every session is\nrevoked by the service \u2014 including, in a moment, this one.",
+        "operationId": "mfa_disable_api_v1_users_me_mfa_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mfa Disable",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/mfa/setup": {
+      "post": {
+        "description": "Start MFA enrolment. The secret is shown ONCE, here, for\nmy authenticator app; nothing protects the account until\n/me/mfa/confirm proves the app can read it.",
+        "operationId": "mfa_setup_api_v1_users_me_mfa_setup_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaSetupResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Mfa Setup",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v1/users/me/password": {
       "post": {
         "description": "Change my password (current password required); every\nexisting session is revoked by the service (B-020).",
@@ -22605,6 +23517,68 @@
           }
         },
         "summary": "Change Password",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/sessions": {
+      "get": {
+        "description": "Every device signed in as me (B-174), newest first, with\nthe current one marked when this call's token knows it.",
+        "operationId": "list_sessions_api_v1_users_me_sessions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionItemResponse"
+                  },
+                  "title": "Response List Sessions Api V1 Users Me Sessions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sessions",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/me/sessions/{family_id}": {
+      "delete": {
+        "description": "Sign out ONE of my devices; the others keep working.",
+        "operationId": "revoke_session_api_v1_users_me_sessions__family_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "family_id",
+            "required": true,
+            "schema": {
+              "title": "Family Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Session",
         "tags": [
           "users"
         ]

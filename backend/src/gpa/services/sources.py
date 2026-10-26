@@ -81,8 +81,11 @@ def create_source(
             SourceChunk(
                 source_id=source.id,
                 position=position,
-                text=chunk.get("text", ""),
-                sender=chunk.get("sender"),
+                # Raw material is sealed at rest (B-167):
+                # message text and sender names never touch
+                # disk in the clear. list_chunks opens them.
+                text=_seal_chunk_text(db, group.id, chunk.get("text", "")),
+                sender=_seal_chunk_sender(db, group.id, chunk.get("sender")),
                 sender_ref=chunk.get("sender_ref"),
                 sent_at=chunk.get("sent_at"),
                 timestamp_text=chunk.get("timestamp_text"),
@@ -123,8 +126,8 @@ def append_chunks(
             SourceChunk(
                 source_id=source.id,
                 position=position,
-                text=chunk.get("text", ""),
-                sender=chunk.get("sender"),
+                text=_seal_chunk_text(db, source.group_id, chunk.get("text", "")),
+                sender=_seal_chunk_sender(db, source.group_id, chunk.get("sender")),
                 sender_ref=chunk.get("sender_ref"),
                 sent_at=chunk.get("sent_at"),
                 timestamp_text=chunk.get("timestamp_text"),
@@ -159,14 +162,104 @@ def list_sources(db: Session, group: Group) -> list[Source]:
     )
 
 
+def _seal_chunk_text(db: Session, group_id: str, text: str) -> str:
+    from gpa.crypto import fields
+
+    return fields.seal_text(db, group_id, "chunk.text", text or "")
+
+
+def _seal_chunk_sender(db: Session, group_id: str, sender: str | None) -> str | None:
+    if sender is None:
+        return None
+    from gpa.crypto import fields
+
+    return fields.seal_text(db, group_id, "chunk.sender", sender)
+
+
+def seal_chunk_text(db: Session, group_id: str, text: str) -> str:
+    """Public sealing for the chunk writers outside this
+    module (transcribe, vision, tombstone restore — B-167)."""
+    return _seal_chunk_text(db, group_id, text)
+
+
+def seal_chunk_sender(db: Session, group_id: str, sender: str | None) -> str | None:
+    """Public sender sealing, companion to seal_chunk_text."""
+    return _seal_chunk_sender(db, group_id, sender)
+
+
+def seal_flyer_transcript(db: Session, group_id: str, text: str) -> str:
+    """Seal a flyer's transcript for rest (B-180's addition to
+    B-167's field set).
+
+    The transcript is the poster's own words — the same raw
+    material as chunk text — but until the Phase 17 gate drill
+    grepped a live database it rested in PLAINTEXT on the Flyer
+    row while its chunk twin was sealed. One content, one law:
+    it seals under its own field name (``flyer.transcript``),
+    so a seal can never be opened as the wrong field.
+    """
+    from gpa.crypto import fields
+
+    return fields.seal_text(db, group_id, "flyer.transcript", text or "")
+
+
+def open_flyer_transcript(db: Session, group_id: str, stored: str) -> str:
+    """Open a stored flyer transcript; legacy plaintext reads
+    as itself, exactly as every B-167 field does."""
+    from gpa.crypto import fields
+
+    return fields.open_text(db, group_id, "flyer.transcript", stored or "")
+
+
+def opened_flyer_transcript(db: Session, flyer) -> str:
+    """A flyer row's transcript, opened for a reader.
+
+    The one funnel for Flyer.transcript reads (wall, detail,
+    flyer views): resolves the flyer's group through its
+    source and installs the opened value with
+    set_committed_value, the list_chunks discipline — no later
+    flush can write plaintext back over the seal.
+    """
+    from sqlalchemy.orm import attributes
+
+    group_id = getattr(flyer, "group_id", "") or ""
+    if not group_id and flyer.source_id:
+        source = db.get(Source, flyer.source_id)
+        group_id = source.group_id if source is not None else ""
+    opened = open_flyer_transcript(db, group_id, flyer.transcript)
+    attributes.set_committed_value(flyer, "transcript", opened)
+    return opened
+
+
 def list_chunks(db: Session, source: Source) -> list[SourceChunk]:
-    """A source's chunks in their one true order: by position."""
-    return (
+    """A source's chunks in their one true order: by position.
+
+    Chunks are sealed at rest (B-167); this is the one read
+    funnel, so it is where they open. The opened values are
+    installed with set_committed_value: the in-memory value
+    and the committed state move together, so no later flush
+    can write the opened plaintext back over the seal."""
+    from sqlalchemy.orm import attributes
+
+    from gpa.crypto import fields
+
+    chunks = (
         db.query(SourceChunk)
         .filter(SourceChunk.source_id == source.id)
         .order_by(SourceChunk.position)
         .all()
     )
+    for chunk in chunks:
+        attributes.set_committed_value(
+            chunk, "text",
+            fields.open_text(db, source.group_id, "chunk.text", chunk.text),
+        )
+        if chunk.sender is not None:
+            attributes.set_committed_value(
+                chunk, "sender",
+                fields.open_text(db, source.group_id, "chunk.sender", chunk.sender),
+            )
+    return chunks
 
 
 def chunk_count(db: Session, source: Source) -> int:
@@ -185,12 +278,31 @@ def add_provenance(
     writes many rows per candidate and commits once. Callers that
     use it standalone must commit themselves.
     """
+    # The quote is an excerpt of the chunk's text — the same
+    # raw material, sealed with it (B-167). The group comes
+    # from the chunk's own source.
+    from gpa.crypto import fields
+
+    source = db.get(Source, chunk.source_id)
+    group_id = source.group_id if source is not None else ""
     row = Provenance(
-        candidate_id=candidate_id, chunk_id=chunk.id, field=field, quote=quote
+        candidate_id=candidate_id, chunk_id=chunk.id, field=field,
+        quote=fields.seal_text(db, group_id, "provenance.quote", quote),
     )
     db.add(row)
     db.flush()
     return row
+
+
+def open_quote(db: Session, row: Provenance) -> str:
+    """A provenance row's quote, opened (B-167). Readers of
+    quotes come through here so the seal has one opening."""
+    from gpa.crypto import fields
+
+    chunk = db.get(SourceChunk, row.chunk_id)
+    source = db.get(Source, chunk.source_id) if chunk is not None else None
+    group_id = source.group_id if source is not None else ""
+    return fields.open_text(db, group_id, "provenance.quote", row.quote)
 
 
 def delete_source(db: Session, *, actor_label: str, group: Group, source_id: str) -> None:

@@ -16,7 +16,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from gpa.schemas.events import iso_utc
-from gpa.services import planning as planning_service
+from gpa.models.planning import task_overdue
 
 # ------------------------------------------------------------------
 # Tasks (B-083)
@@ -83,7 +83,7 @@ def task_view(task) -> TaskResponse:
         owner_label=task.owner_label,
         suggested_owner_label=task.suggested_owner_label,
         unclaimed=task.owner_id is None,
-        overdue=planning_service.task_overdue(task),
+        overdue=task_overdue(task),
         due_at=iso_utc(task.due_at),
         status=task.status,
         completed_at=iso_utc(task.completed_at),

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from gpa.errors import AppError
 from gpa.models.events import Event
 from gpa.models.groups import Group
-from gpa.models.identity import User, now_utc
+from gpa.models.identity import now_utc
 from gpa.models.planning import ChecklistItem, RoleSlot
 from gpa.services import audit
 from gpa.services import planning as planning_service

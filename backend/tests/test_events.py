@@ -119,7 +119,14 @@ def test_approval_mints_a_published_event(client, app, db_session):
         .all()
     )
     assert links and all(link.source_id == world["source_id"] for link in links)
-    assert any("this Saturday" in link.quote for link in links)
+    # Link quotes are sealed at rest (B-167); the assertion
+    # reads them through the opening law.
+    from gpa.crypto import fields
+
+    assert any(
+        "this Saturday" in fields.open_text(db_session, gid, "event_link.quote", link.quote)
+        for link in links
+    )
 
 
 def test_approval_of_a_dateless_draft_is_refused_in_plain_words(client, world):

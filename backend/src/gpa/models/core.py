@@ -90,6 +90,25 @@ class AuditLog(Base):
     entity_id: Mapped[str] = mapped_column(String(36), default="")
     detail_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_utc)
+    # The B-170 hash chain: prev_hash names the row before
+    # this one, row_hash is the keyed hash of this row's
+    # contents + prev_hash. NULL on rows written before the
+    # chain existed; verification starts at the first
+    # hashed row and says so.
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    row_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AuditChainHead(Base):
+    """The audit chain's tip (B-170): exactly one row
+    (id=1), extended inside each writer's transaction so
+    the chain cannot fork under WAL's serialized writers."""
+
+    __tablename__ = "audit_chain_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_hash: Mapped[str] = mapped_column(String(64))
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class FileAsset(Base):

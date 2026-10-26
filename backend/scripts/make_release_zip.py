@@ -24,13 +24,21 @@ Two shapes:
                                      # (B-149; in the tree since
                                      # then, top-level from ZIP-Final)
               SHA256SUMS.txt         # hash of every file in the zip
+              sbom.spdx.json         # SPDX bill of materials from
+                                     # uv.lock (B-179)
               release-manifest.json  # version, git hash, slice
                                      # range, AI driver modes,
                                      # known limits (from the
-                                     # limits file, one per line)
+                                     # limits file, one per line),
+                                     # and the signing key's
+                                     # fingerprint (B-179)
 
-        The top-level documents are read from the repo root —
-        the release is only as honest as what is committed
+        Beside the ZIP land its detached Ed25519 signature
+        (``<zip>.sig``) and the signer's public key (``<zip>.pub``),
+        written by scripts/release_signing.py; verify with
+        ``scripts/release_signing.py verify <zip>`` before
+        unzipping. The top-level documents are read from the repo
+        root — the release is only as honest as what is committed
         there, and the script refuses to build without them.
 
 Excluded, always: .git, virtualenvs, caches, databases, runtime
@@ -38,6 +46,7 @@ data, and ANY .env file — a ZIP must never carry a secret (D-25).
 """
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -48,6 +57,15 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# The B-179 signing + SBOM machinery lives in its own script so the
+# verifier can be run without building anything; load it by path
+# (scripts/ is not a package) exactly as the tests load this file.
+_signing_spec = importlib.util.spec_from_file_location(
+    "release_signing", Path(__file__).resolve().parent / "release_signing.py"
+)
+release_signing = importlib.util.module_from_spec(_signing_spec)
+_signing_spec.loader.exec_module(release_signing)
 
 EXCLUDED_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "data", "releases", ".mypy_cache", ".ruff_cache", ".forge-lock"}
 EXCLUDED_SUFFIXES = {".pyc", ".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".log", ".zip"}
@@ -104,6 +122,8 @@ def build_flat(name: str) -> None:
     out_dir.mkdir(exist_ok=True)
     zip_path = out_dir / f"group-planning-assistant-backend-{name}.zip"
 
+    # B-179: even the founding shape is signed and carries an SBOM.
+    private_key, ephemeral = release_signing.load_private_key(ROOT)
     files = _tree_files()
     manifest = {"release": name, "files": {}}
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
@@ -114,11 +134,23 @@ def build_flat(name: str) -> None:
             stat = path.stat()
             zf.writestr(_zip_info(rel, stat.st_mode, stat.st_mtime), data)
         zf.writestr(
+            _zip_info("sbom.spdx.json", 0o100644, time.time()),
+            release_signing.sbom_bytes(ROOT),
+        )
+        manifest["signing"] = {
+            "algorithm": "Ed25519",
+            "key_id": release_signing.key_fingerprint(private_key.public_key()),
+            "ephemeral": ephemeral,
+        }
+        zf.writestr(
             _zip_info("manifest.json", 0o100644, time.time()),
             json.dumps(manifest, indent=2, sort_keys=True),
         )
 
     digest = _write_sidecar(zip_path)
+    release_signing.sign_zip(zip_path, private_key)
+    if ephemeral:
+        print("WARNING: signed with an EPHEMERAL key (no GPA_RELEASE_* key configured).")
     print(f"Built {zip_path} ({zip_path.stat().st_size:,} bytes, {len(files)} files)")
     print(f"sha256: {digest}")
 
@@ -161,6 +193,10 @@ def build_train(version: str, date: str, slice_end: str) -> None:
         stat = (ROOT / doc).stat()
         entry_modes[doc] = (stat.st_mode, stat.st_mtime)
 
+    # B-179: load the signing key BEFORE assembling entries — the
+    # manifest inside the ZIP names the key's fingerprint, and the
+    # detached signature over the finished ZIP is written after.
+    private_key, ephemeral = release_signing.load_private_key(ROOT)
     manifest = {
         "version": version,
         "date": date,
@@ -168,10 +204,17 @@ def build_train(version: str, date: str, slice_end: str) -> None:
         "slice_range": f"B-001 → {slice_end}",
         "ai_driver_modes": ["live", "fixture", "mock"],
         "known_limits": known_limits,
+        "sbom": "sbom.spdx.json",
+        "signing": {
+            "algorithm": "Ed25519",
+            "key_id": release_signing.key_fingerprint(private_key.public_key()),
+            "ephemeral": ephemeral,
+        },
     }
     entries["release-manifest.json"] = json.dumps(
         manifest, indent=2, sort_keys=True
     ).encode("utf-8")
+    entries["sbom.spdx.json"] = release_signing.sbom_bytes(ROOT)
     sums = "".join(
         f"{hashlib.sha256(data).hexdigest()}  {name}\n"
         for name, data in sorted(entries.items())
@@ -184,8 +227,16 @@ def build_train(version: str, date: str, slice_end: str) -> None:
             zf.writestr(_zip_info(name, mode, mtime), entries[name])
 
     digest = _write_sidecar(zip_path)
+    signing = release_signing.sign_zip(zip_path, private_key)
+    if ephemeral:
+        print(
+            "WARNING: signed with an EPHEMERAL key — no GPA_RELEASE_PRIVATE_KEY_B64 "
+            "or GPA_RELEASE_KEY_FILE was configured. The manifest says so; a "
+            "release for other people must be signed with the team's key."
+        )
     print(f"Built {zip_path} ({zip_path.stat().st_size:,} bytes, {len(entries)} files)")
     print(f"sha256: {digest}")
+    print(f"signing key: {signing['key_id']} (Ed25519, .sig + .pub beside the ZIP)")
 
 
 def main() -> None:

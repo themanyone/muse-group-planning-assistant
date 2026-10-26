@@ -49,6 +49,7 @@ from gpa.errors import AppError
 from gpa.models.core import FileAsset, Job
 from gpa.models.groups import Candidate, Group
 from gpa.models.sources import Flyer, Provenance, Source, SourceChunk
+from gpa.internal.client import call_internal
 from gpa.services import audit, images as image_service, jobs as job_service
 from gpa.services import quality, sources as source_service, usage as usage_service
 from gpa.storage import get_storage
@@ -94,20 +95,24 @@ def request_vision_read(
                 "reads flyer and board-photo sources."
             ),
         )
-    job = job_service.enqueue(
-        db, settings, kind=JOB_KIND,
+    data = call_internal(
+        db, caller="extraction", operation="ai.submit_job",
         payload={
-            "group_id": group.id,
-            "source_id": source.id,
-            "requested_by": actor_label,
+            "kind": JOB_KIND,
+            "payload": {
+                "group_id": group.id,
+                "source_id": source.id,
+                "requested_by": actor_label,
+            },
         },
     )
+    job = db.get(Job, data["job_id"])
     # The job's id joins its payload (enqueue commits first — the
     # id only exists afterwards) so the run can advance its own
     # progress row and stamp its candidates (B-069, as B-045).
-    payload = json.loads(job.payload_json or "{}")
+    payload = job_service.payload_of(job)
     payload["job_id"] = job.id
-    job.payload_json = json.dumps(payload)
+    job_service.store_payload(job, payload)
     db.commit()
     audit.record(
         db, actor=actor_label, action="vision.requested",
@@ -118,7 +123,7 @@ def request_vision_read(
     return job
 
 
-def _is_genuine_alt(text: str, *, filename: str = "") -> bool:
+def is_genuine_alt(text: str, *, filename: str = "") -> bool:
     """The accessibility law's test (B-065): a description is
     genuine when it is real words about the picture — long enough
     to say something, not the placeholder, not a filename."""
@@ -276,9 +281,13 @@ def _read_one_flyer(
     # description AND no description exists yet — a person's own
     # words (status already complete) are never overwritten by a
     # machine draft.
-    flyer.transcript = reading.transcript
+    # Sealed at rest like its chunk twin below (B-167's field
+    # set, extended by the B-180 drill — see sources.seal_flyer_transcript).
+    flyer.transcript = source_service.seal_flyer_transcript(
+        db, source.group_id, reading.transcript
+    )
     asset = db.get(FileAsset, flyer.file_asset_id) if flyer.file_asset_id else None
-    if flyer.alt_text_status != "complete" and _is_genuine_alt(
+    if flyer.alt_text_status != "complete" and is_genuine_alt(
         reading.alt_text, filename=asset.filename if asset else ""
     ):
         flyer.alt_text = " ".join(reading.alt_text.split())[:500]
@@ -298,11 +307,12 @@ def _read_one_flyer(
     chunks = source_service.list_chunks(db, source)
     if chunks:
         chunk = chunks[0]
-        chunk.text = reading.transcript
+        chunk.text = source_service.seal_chunk_text(db, source.group_id, reading.transcript)
         chunk.region_json = json.dumps({"box": region_box or [0, 0, 1, 1]})
     else:
         chunk = SourceChunk(
-            source_id=source.id, position=0, text=reading.transcript,
+            source_id=source.id, position=0,
+            text=source_service.seal_chunk_text(db, source.group_id, reading.transcript),
             region_json=json.dumps({"box": region_box or [0, 0, 1, 1]}),
         )
         db.add(chunk)

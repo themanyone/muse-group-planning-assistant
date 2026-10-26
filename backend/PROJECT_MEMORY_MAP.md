@@ -1605,6 +1605,626 @@ Phase 16 begins at B-157.
   **160/350 slices, Phases 0–16 complete.** Contract: 188
   paths / 218 schemas.
 
+### Phase 17 — Modularity, internal encrypted API, resilience, craft (B-161 → B-180): COMPLETE (gate 2026-10-26)
+- **B-161 module boundaries** ✅: `gpa/internal/` opens with
+  `modulemap.py` (every services file placed in its §6A.3
+  module; composition roots named; audit + crypto recorded as
+  the shared common modules whose public functions are their
+  surface) and `architecture.py` — an AST import scanner +
+  import-linter-style checker. `tests/test_architecture.py`
+  enforces: layering (models import nothing above the data
+  layer; schemas never import services/routers; nothing but
+  composition imports routers; storage never imports upward),
+  a total ban on cross-file private imports, every service
+  file mapped, and TWO exact pinned inventories (cross-module
+  service edges: 115; router → model edges: 14) that may only
+  shrink, in the same commit that removes an edge. Proven by
+  a deliberately violating fixture (private import, two
+  upward leans, an unpinned edge, an unmapped file — each
+  named by rule, file, line) and a stale-pin test.
+  **Evidence corrections this scan made**: (1) the B-017-era
+  note "no router imports any model" is superseded — 14
+  router → model edges exist (small projection fetches, e.g.
+  B-140's members-only job view); they are pinned, not denied.
+  (2) Two schemas imported services; fixed at root by moving
+  the pure row helpers `etag_of` → `models/events.py` and
+  `task_overdue` → `models/planning.py` (services/events keeps
+  `etag_of` as a re-export for its routers). (3) Three private
+  helpers were imported across files; promoted to public names
+  in their owning modules: `vision.is_genuine_alt`,
+  `matching.normalised`, `notifications.parse_hhmm`.
+  Enabler committed alongside: the `cryptography` dependency
+  (AES-256-GCM + Ed25519 for B-163/B-167; the roadmap names
+  both algorithms, and neither exists in the stdlib; wheels
+  ship for every Tier-1 target incl. Pi).
+- **B-162 internal API core** ✅: `gpa/internal/{envelope,
+  registry, client, handlers}.py`. Envelope = pydantic
+  `{operation, caller, scope, payload, nonce, timestamp,
+  idempotency_key, signature}`; payloads carry ids/values
+  only, datetimes as ISO strings. Registry: operation →
+  owner + required scope; static `CALLER_GRANTS` mirror the
+  pinned edge inventory's meaning. Handlers run in the
+  CALLER's session/transaction and preserve each direct
+  call's commit discipline (job submission commits;
+  emit/notify/candidates do not). Rewired through the
+  client: events (4 emits + cancellation fan-out → one
+  `notify.request` with an `event_id` audience), announce,
+  rsvps (`notify.rsvp_promotion`), invites, reconcile
+  (caller="integrations"), groups (stub draft →
+  `candidates.create` over a new public
+  `services/candidates.create_candidate`; mint emit),
+  digests + retention chain links (`jobs.enqueue`),
+  extraction (submits → `ai.submit_job`; pending emits),
+  vision (submit), voice (transcribe submit,
+  caller="sources"), google_inbound + samtal_calendar +
+  memory (inline `Candidate(...)` → `candidates.create`).
+  NOT rewired, deliberately: same-transaction `jobs.queue()`
+  sites — the jobs module's in-process surface, not a
+  cross-module call. Defect fixed at root: announce's audit
+  line counted the removed `recipients` list (NameError
+  under approval alerts) — it now counts the notify result's
+  created ids, the people actually told. Architecture
+  inventory 115 → 106, exactly the nine rewired edges. Tests:
+  test_internal_api 9 passed; affected batches 91 + 85
+  passed (change-alerts re-run 15 passed after the fix).
+- **B-163 encrypted internal transport** ✅:
+  `gpa/internal/crypto.py` (AES-256-GCM seal/open with the
+  header as AAD; Ed25519 sign/verify; HMAC profile; comms key
+  from `GPA_INTERNAL__KEY_B64` or domain-labelled derivation
+  from the app secret), `gpa/internal/ca.py` (internal CA:
+  mint CA + server/client leaves, loopback SANs),
+  `gpa/internal/transport.py` (length-framed wire form —
+  header in clear as authenticated data, payload sealed,
+  whole message signed; `WireServer` refuses unsigned/forged
+  frames BEFORE dispatch and signs even its refusals;
+  `UnixWireServer`, loopback `TcpWireServer` + mTLS contexts,
+  `WireClient`). Root addition in client.py:
+  `execute_envelope(db, envelope) -> InternalResult` — both
+  doors now share the one `_dispatch` (registration, scope,
+  handler), so the law cannot differ by door. Acceptance
+  evidence (tests/test_internal_transport.py, 6 tests): a
+  recording TAP between a real client and server on a real
+  Unix socket holds NO readable payload content in either
+  direction while the call succeeds; an unsigned hand-made
+  frame is refused pre-dispatch; the round trip also runs
+  across a REAL subprocess boundary
+  (tests/internal_fixture_server.py) and over loopback mTLS
+  (a wrong-CA client leaf cannot complete the handshake).
+  NOT RUN: Windows named pipes (Linux builder) — the framing
+  and wire form behind the pipe are these same classes; the
+  pipe leg itself is unproven here and the papers will say
+  so.
+- **B-164 service identities + replay protection** ✅:
+  `gpa/internal/identity.py` (per-module Ed25519 identities,
+  key ids = SHA-256 fingerprint prefix; custody = an
+  identities directory of `<name>.seed`/`.pub`(+`.pub.prev`
+  overlap) or, dev posture, HMAC derivation from the app
+  secret — distinct key per module either way; scopes ARE
+  the registry's grants, never duplicated) and
+  `gpa/internal/replay.py` (5-minute window + seen-nonce
+  store, `internal_replayed`; in-memory per door process —
+  the restart-within-window residual is documented in the
+  module, not hidden). The door now binds envelope caller to
+  the authenticated signing identity, and `Channel.verify`
+  returns the matched key id under rotation overlap.
+  Acceptance (tests/test_internal_identity.py): impersonation
+  refused at three layers (forged signer name → bad
+  signature; honest signer + lying caller → binding refusal;
+  own name + wrong scopes → scope denial), captured-message
+  replay + stale timestamp refused, rotation overlap loses
+  nothing (old key lands mid-rotation, refused after, new
+  key works throughout). B-163's fixtures were aligned to
+  sign as their true caller ("events") — the binding's first
+  catch was our own test data.
+- **B-165 internal API audit** ✅: `gpa/internal/auditing.py`
+  — the client's audit hook (the slot B-162 reserved) writes
+  one B-019 line per dispatch: actor `module:<caller>`,
+  action `internal.<operation>`, detail = exactly {caller,
+  key_id, operation, scope, module (owner tag), result}
+  — never the payload; entity_id = the envelope nonce;
+  group_id when the payload carries one (an id, not
+  content). Installed by all three composition roots
+  (main.create_app, worker.main, arq_worker.main) inside the
+  caller's transaction, so story and act commit together.
+  Acceptance (tests/test_internal_audit.py, 4 passed): the
+  story reconstructs from audit alone in order, refusals
+  leave their line with the refusal's code, and a seeded
+  distinctive title appears in NO audit line in the stream.
+- **B-166 in-process profile, honestly** ✅: the internal
+  client's `wire` mode — a client with a WireClient attached
+  seals+sends instead of dispatching locally, so the split
+  profile is a composition choice and no module's call site
+  changes; the server door's `execute_envelope` carries the
+  split transaction law (per-call session: commit on
+  success, roll back on refusal). Job payloads at rest are
+  envelope-encrypted: `services/jobs.py` seals every payload
+  (`enc:v1:` + AES-256-GCM under the internal key, AAD bound
+  to the use) at `queue()`, at the arq adapter's Redis
+  boundary, and on payload stamps; `payload_of` is the one
+  reading law and tolerates legacy plaintext rows by prefix.
+  DEFECTS FIXED AT ROOT: (1) two key sources — queue() sealed
+  under env settings while process_one opened under the
+  app's explicit settings, making sealed payloads read as
+  tampering wherever Settings are constructed rather than
+  env-read; the chassis now takes composition-injected
+  settings (the mailer/outbound pattern: create_app, worker,
+  arq_startup all inject), one key source per process. (2)
+  reconcile's new except clause referenced AppError without
+  importing it. Tests moved to the reading law where they had
+  read raw columns (digest/reconcile/rsvps/jobqueue).
+  Acceptance (tests/test_internal_profiles.py, 11 passed):
+  the same probes pass in BOTH profiles unchanged; a copied
+  database yields no readable job payload; legacy rows read.
+- **B-167 field-level encryption** ✅: `gpa/crypto/fields.py`
+  — master key (env `GPA_MASTER_KEY_B64`, never in the DB;
+  dev derivation fallback) wraps per-group random data keys
+  (`group_keys` table, migration 0017); fields seal as
+  `enc:v1:` + AES-256-GCM with the seal bound to group +
+  field name; a keyed HMAC blind index rides for lookup
+  fields. Adopted by the rawest content: source chunk text +
+  sender names (sealed in sources/transcribe/vision/
+  tombstone-restore writers, opened in the list_chunks
+  funnel via set_committed_value so no flush can write
+  plaintext back), provenance quotes (add_provenance seals;
+  candidates/events/merging/tombstone-export read through
+  open_quote; merging dedups on OPENED quotes — seals are
+  nonce-random and never match themselves), and
+  event-source-link quotes (opened+resealed at mint, never
+  copied sealed-to-sealed; the events router opens for
+  projection). The group export opens all three at assembly
+  (the archive is the owner's readable data). Opening never
+  creates key material: a sealed value naming a keyless group
+  is tampering. DEFECTS FOUND BY THE REGRESSION BATCH, fixed
+  at root (B-166 completeness): vision's payload stamp,
+  retention's payload reader, the jobs router's projection,
+  and erasure's job attribution (a SQL LIKE over payload_json
+  matches nothing under sealing — jobs of an erased group
+  would have survived; attribution now opens payloads).
+  Deliberate new architecture pins, with reasons: candidates→
+  sources, merging→sources, transcribe→sources (quote/chunk
+  sealing law lives with the data's owner; writes ride the
+  caller's transaction), stream→jobs (payload reading law),
+  erasure→jobs (payload attribution) — inventory 106 → 111.
+  Acceptance (tests/test_field_encryption.py, 6 passed): raw
+  DB+WAL grep finds no seeded secret/name/text while the API
+  serves them whole; wrapped keys distinct per group, data
+  keys nowhere in the file; cross-group/cross-field opens
+  refused. NOT yet sealed (service is field-generic; named
+  next adopters): candidate draft fields and discussion text.
+- **B-168 encrypted file storage** ✅:
+  `gpa/storage/encrypted.py` — a B-007 driver wrapping the
+  local driver: every object sealed with a fresh per-file
+  key (AES-256-GCM), the file key wrapped under the master
+  key and carried in a `GPAE1` header inside the object;
+  reads open transparently; legacy unsealed objects read as
+  themselves. LocalStorage gained `put_at` (key-addressed
+  atomic write) so the sealed blob rests under the
+  PLAINTEXT's content address — keys, dedup, and the
+  erasure shared-object law all survive. Composition:
+  `GPA_ENCRYPT_STORAGE` via build_storage in all roots +
+  the storage registry default. DEVIATION FROM THE ROADMAP'S
+  LETTER, recorded: file keys wrap under the MASTER key, not
+  the group key — the store is content-addressed and shared
+  across groups by design (one object, several owner groups;
+  B-143 keeps it while any owner lives), and a group-wrapped
+  key would make a shared object unreadable to its other
+  owners. Acceptance (tests/test_encrypted_storage.py, 5
+  passed): raw-disk grep finds neither a planted text file's
+  words nor a picture's bytes; the API-path upload seals on
+  disk and serves whole; wrong master opens nothing.
+- **FULL-SUITE CHECKPOINT (after B-168)**:
+  `~/workspace/.verify-tmp/p17-full-gate1.log` — 960
+  collected: **955 passed / 4 skipped / 1 failed in 39m18s**.
+  The one failure was this map's author's own B-167 test
+  asserting the migration head is literally 0017 — stale
+  the moment 0018/0019 landed; the test now asserts against
+  the script directory's live head. Phase 17's first eight
+  slices are full-suite green.
+- **B-169 key management + owner recovery** ✅:
+  `gpa/services/keymgmt.py` + `KEY_MANAGEMENT.md` (the
+  hierarchy in one page). Master rotation = re-wrap only
+  (one transaction, lands whole or not at all; job
+  `crypto.rotate_master`, old key from
+  GPA_MASTER_KEY_OLD_B64, operator-set, never resting).
+  Recovery: RecoveryEscrow rows (migration 0018) hold the
+  master sealed under per-code scrypt keys; codes are
+  shown once and rested NOWHERE; the row-finding check is
+  keyed by the APP SECRET precisely so it can be computed
+  on the day the master is lost; minting deletes the old
+  set (mint = revocation); a code spends once. Acceptance
+  (tests/test_key_management.py, 4 passed): mint → lose →
+  restore round trip (sealed field opens again under the
+  recovered master); rotation re-wraps (version bump,
+  sealed data untouched; wrong old key stops whole); the
+  REAL B-146 bundle script's output greps clean for the
+  master, a data key, and all eight codes, raw and base64.
+  Migration 0019 (audit chain schema) landed in this commit
+  with its migration test; the chain itself wires at B-170.
+- **B-170 tamper-evident audit chain** ✅: AuditLog gains
+  prev_hash/row_hash; AuditChainHead (id=1) holds the tip,
+  extended inside each writer's transaction by
+  audit.record's new flush-and-hash step (flush, never a
+  commit — change and audit entry still land or roll back
+  together). Hash = HMAC-SHA256 keyed by a chain key
+  derived from the app secret (set_chain_secret in all
+  composition roots). `gpa/services/audit_chain.py`
+  verifies by LINK WALK: follows prev-hash links from
+  GENESIS (or a uniquely re-anchored start), recomputes
+  every row, requires the walk to consume exactly the
+  hashed rows, and checks the head — edits, deletes,
+  forged inserts, forks, and tail cuts each fail AT the
+  wound with the row named. Endpoint:
+  GET /groups/{id}/audit/verify (admin of any group; the
+  chain is instance-wide). Acceptance
+  (tests/test_audit_chain.py, 5 passed): ordered links
+  verify; edited row fails naming the row; deleted row
+  breaks; forged insert detected; endpoint answers the
+  same verdict. Audit-heavy regression batch: 62 passed.
+- **B-171 durability manager** ✅: (a) commit-before-answer
+  made STRUCTURAL — `gpa/durability.py` WriteTracker
+  (flush listeners mark uncommitted writes; commit/rollback
+  clear) rides request.state from get_db; the create_app
+  middleware answers a success response carrying uncommitted
+  writes with 500 `uncommitted_writes` after rolling them
+  back. Error responses pass untouched. (b) Draft autosaves
+  (migration 0020): PUT/GET
+  /groups/{id}/autosaves/{candidate|event}/{id} with
+  base_version optimistic concurrency — a stale save lands
+  as a kept conflict copy, answered 409 draft_conflict with
+  both versions. (c) Resumable chunked uploads:
+  POST/GET/PUT parts/POST complete under
+  /groups/{id}/uploads — parts in any order, each size-
+  verified against its position (offset law), resting as
+  files outside the content store; completion assembles,
+  verifies the whole-file SHA-256 (mismatch → 422, session
+  stays open), and hands the bytes to B-025's ingest_file.
+  Acceptance (tests/test_durability.py, 4 passed): the
+  forgetting-handler probe (500 + writes gone; committed
+  control persists; a refuser's own error stands), the
+  conflict rehearsal, resume-after-kill across two app
+  instances, hash-mismatch refusal. Also in this commit:
+  the modulemap placements B-169/B-170 owed (audit_chain →
+  audit, keymgmt → crypto, uploads → sources, autosaves →
+  platform) + the keymgmt→jobs handler-registration pin —
+  architecture suite green.
+- **B-172 startup recovery & self-healing** ✅:
+  `gpa/services/recovery.py` assess_and_repair — verdicts
+  serve / repaired / refuse(with the manual repair named).
+  Repairs: WAL checkpoint (frames brought home are
+  reported), stuck jobs (running past the 900 s lease →
+  requeued with attempt counted or failed when spent, each
+  audited as system:recovery), orphan upload parts (open
+  sessions' parts are the resume contract — never swept;
+  completed/ghost sessions' parts are), migration state
+  (an alembic_version naming an unknown revision refuses;
+  an unstamped create_all database is noted, not refused).
+  The worker runs it before its first job and exits 2 on
+  refuse. Acceptance (tests/test_startup_recovery.py, 5
+  passed): the DOUBLE-VERDICT GUARD (healthy ground scores
+  serve twice, zero actions), stuck-job requeue exactly
+  once then serve, spent-job failure, orphan sweep bounds,
+  unknown-revision refusal naming the repair.
+- **STOPPED after B-172** (this builder's run): B-173 →
+  B-180 remain for the timer crew, in order. Phase papers
+  NOT written (B-180 not reached). Full-suite gate for
+  B-169→B-172 stands on their affected batches (all green,
+  named in the entries above); the next full gate + PG
+  parity belong with the B-180 drill.
+- **B-173 error-correction services** ✅ (timer crew,
+  2026-10-25): `gpa/services/resilience.py` — one circuit
+  breaker + one bulkhead per external dependency (meta_ai /
+  mail / facebook / google; threshold 5 consecutive failures,
+  60 s cooldown, one half-open probe, 4 in flight per
+  process; state is per-process memory, reset at every
+  composition — a fresh process re-probes the world).
+  Enforcement is the job chassis: `jobs.process_one` takes
+  the dependency's permit (bulkhead first, so a full
+  compartment never spends the probe slot) for the mapped
+  kinds (notify/digest_run → mail; extract/vision/transcribe
+  → meta_ai); no permit = DEFER — job back to queued with the
+  cooldown as its run time, attempts untouched, plain-words
+  reason on the row. Real outcomes settle the breaker.
+  `resilience.call` is the same door for inline callers.
+  `gpa/services/repair.py` — the `data_repair` job: recomputes
+  derived truths from the rows that own them (done-job
+  progress, chunk positions 0..n-1, flyer alt_text_status via
+  vision.is_genuine_alt), removes provenance pointing at
+  chunks/candidates that no longer exist (event source links
+  deliberately untouched — B-023 tombstone law), re-renders
+  empty-bodied digests through compose_digest for their own
+  week in place; ONE audit row (repair.completed) lists every
+  fix; a second run finds nothing. `DEGRADATION.md` (repo
+  root) is the per-dependency matrix: queued, never silently
+  lost, never a stack trace. Acceptance
+  (tests/test_error_correction.py, 10 passed): parametrized
+  kill-each-dependency (breaker opens, refuses without
+  calling, other breakers stay closed), half-open probe
+  decides both ways, bulkhead refuses only its own
+  dependency, mail outage defers notify jobs attempt-free
+  while data_repair runs to done mid-outage, Meta outage
+  defers extraction while mail sails, planted-damage repair
+  (orphans planted through a raw FK-off engine — the lax
+  road that creates them) fixes forward + audits + is
+  idempotent. Architecture pins 111 → 116 with reasons
+  recorded (jobs→resilience the chassis' own gate;
+  repair→digests/jobs/vision recompute-never-reimplement;
+  jobqueue→repair registration). **Defect found in earlier
+  code, fixed at root**: `services/voice.ingest_voice` never
+  committed — it rode on the job submission's commit, and
+  since B-165 the internal call's audit row lands after that
+  commit, so B-171's guard answered voice uploads 500
+  `uncommitted_writes` (tests/test_stream.py ×3, red on
+  pristine HEAD too — the B-169→B-172 batches never ran it).
+  The service now commits its own transaction; stream +
+  voice + transcription + durability suites green (15
+  passed). Regression batch for the chassis change (jobs,
+  job race, jobqueue, notifications, digest, extraction
+  jobs, inbox, rsvps, internal profiles): 49 passed + the
+  same 3 stream failures, all pre-existing, all fixed by
+  the voice commit above. Progress: **173/350**.
+- **B-174 advanced account security** ✅ (timer crew,
+  2026-10-25): `gpa/services/account_security.py` (identity
+  module) + migration 0021. **TOTP MFA** hand-rolled RFC 6238
+  on stdlib (HMAC-SHA1, ±1-step window; RFC test vectors
+  pinned) — setup mints a secret stored SEALED via
+  services/sealing (shown once, in the setup answer), confirm
+  proves the app can read it before `mfa_enabled` flips, and
+  enrolment's confirming step is deliberately NOT spent (the
+  person may re-sign-in inside the same 30 s). Password
+  sign-in for an MFA account mints NO session: it earns a
+  5-minute single-use `mfa_challenge` one-time token, answered
+  at POST /auth/login/mfa; a mistyped code does not burn the
+  challenge, a correct one spends its TOTP step — the same
+  code replayed against a fresh challenge is refused
+  (`mfa_last_step`). Owners/admins see `offer_required` on
+  GET /users/me/mfa (the roadmap's mandatory-OFFER; taking it
+  up stays their act). Disabling MFA (current code required)
+  revokes every session. **Password policy**: ≥12 chars + a
+  LOCAL breached/common list (the roadmap's offline option —
+  no password fragment ever leaves the machine to be checked)
+  + not-the-email-name, enforced at register / reset /
+  change (`password_too_weak` 422); the seed road keeps its
+  direct-hash discipline and is untouched. **Progressive
+  lockout** on the User row: 5 consecutive failed password
+  sign-ins lock for 1 min, doubling per further failure,
+  capped 1 h (`account_locked` 423, plain words naming the
+  wait); success clears the count. **Session list**:
+  RefreshToken gained the birth device words (user-agent/IP,
+  carried forward across rotation — one family is one
+  device); access tokens now carry a `fam` claim (a label,
+  never a credential) so GET /users/me/sessions can mark the
+  current device; DELETE /users/me/sessions/{family_id}
+  signs out exactly that device (another's family = 404).
+  **Login anomaly**: issue_session records the (IP,
+  user-agent) pair in `user_devices` in the session's own
+  commit; a NEW pair for a person with known devices writes
+  an outbox notice + `user.login_new_device` audit row.
+  Acceptance (tests/test_account_security.py, 10 passed):
+  RFC vectors, policy (short + breached), full MFA flow +
+  code single-use + challenge single-use, setup-not-yet-
+  protection, owner offer, disable-revokes, session list +
+  per-device revoke, lockout + lift + counter reset,
+  new-device notice exactly once — and the slice's named
+  guarantee: **a stolen refresh token still dies by B-013's
+  rotation rule with MFA on** (replay revokes the family,
+  newest token included). **Boundaries recorded plainly**:
+  magic-link sign-in remains a full sign-in with MFA on (the
+  link proves mailbox control, itself a factor; the challenge
+  guards the password road); WebAuthn/passkeys are the
+  roadmap's post-window stretch and are NOT built. Contract
+  regenerated: **201 paths / 229 schemas** (188/218 at B-160 —
+  the delta is B-174's 7 routes plus the Phase 17 routes
+  B-169→B-173 had not frozen); SDK regenerated with it (256
+  operations). Full suite (basetemp on the overlay, totals
+  from the run's own log): **994 passed, 4 skipped, 1 failed**
+  — the one failure was the stale generated SDK against the
+  new contract; regenerated, its batch passes (developer
+  pack + OpenAPI snapshot, 6 passed). No other test was
+  touched by the fix. Progress: **174/350**.
+- **B-175 crash-correction test harness** ✅ (timer crew,
+  2026-10-25): fault injection as a first-class suite.
+  `gpa/services/chaos.py` (platform module) states the crash
+  invariant once, as code — no committed entry lost, no
+  half-written entity visible, no interrupted job silently
+  gone — and judges any database against it below the API
+  (integrity + foreign-key PRAGMAs, ready-source-without-
+  chunks tear probe, running-job census). The drivers:
+  `tests/chaos_worker.py`, a subprocess that reaches a named
+  kill point in one roadmap flow and then SIGKILLs itself
+  (marker file proves the point was reached by the road
+  intended, exit is -SIGKILL, never an early error) — ingest
+  after commit (whole source + 3 chunks survive), ingest
+  mid-transaction (nothing visible), extraction and digest
+  jobs claimed-then-killed (B-172 recovery requeues with a
+  plain-words record; the resumed job then runs to done
+  under a probe handler, restored afterwards), approval
+  mid-transaction (candidate stays pending, NO event
+  minted — the flip and the mint are one transaction or
+  neither), upload mid-session (session stays open, landed
+  part byte-intact, the missing part resumes and the
+  assembled whole matches the session's SHA-256). The
+  in-process legs inject disk-full at the storage boundary
+  (ENOSPC inside the ingest transaction → rollback, no
+  partial source) and a read-only database (creator-based
+  `mode=ro` open — the pysqlite driver ignores `?mode=ro`
+  in the URL string, found by the first run; writes refuse,
+  committed rows read whole). **The 100-run pass**:
+  `run_inprocess_chaos(seed=175)` draws seeded-random faults
+  over the five kinds (commit 18, rollback 17, job 17,
+  diskfull 19, readonly 29), one fresh deployment per run
+  (schema template copied per run — create_all ×100 made
+  the first pass take ~9 minutes; the copy brings the whole
+  file to ~80 s), recovery first, invariant judged after
+  every fault: **100/100 hold**. `scripts/chaos_report.py`
+  re-runs legs + loop as an operator road and writes
+  `CHAOS_REPORT.md` (6/6 legs, 100/100 runs — quoted in
+  TEST_REPORT's Phase 17 addendum, the ZIP's test report).
+  Power-loss profile, stated honestly: a SIGKILL inside an
+  open transaction is the same event as a power cut for
+  committed rows under WAL + synchronous=FULL (B-003), so
+  the mid-transaction legs ARE the fsync-window legs; no
+  VM/container rig is used (no-Docker law). Tests:
+  test_chaos 7 + architecture/recovery/durability batch —
+  19 passed in the targeted run. Progress: **175/350**.
+- **B-176 comment + documentation gate** ✅ (timer crew,
+  2026-10-25): `scripts/comment_gate.py` — a stdlib-only AST
+  checker, importable (`check_tree`) and runnable as a CLI;
+  it runs inside `test.sh` through `tests/test_comment_gate.py`
+  (test.sh IS the pytest suite). HARD rules, one breach fails:
+  every Python file under src/gpa + migrations/versions +
+  scripts opens with a purpose header (module docstring or
+  leading comment); every migration carries a why-docstring;
+  every prompt template carries its name+version front-matter
+  (B-038's discipline); every `.env.example` setting block is
+  comment-introduced; no docstring may merely restate its
+  name (§6A.1 counts that AGAINST a module). RATCHET floors
+  per module — function/class docstring coverage + documentation
+  density (docstring + comment lines as a share of all lines):
+  measured on this tree at the gate's landing, rounded down to
+  the nearest five points, and only ever rising (services
+  75/95/20, routers 85/60/15, schemas 55/70/20, models
+  95/95/40, migrations 10/0/15, scripts 40/0/15, the rest in
+  the checker's FLOORS table); a new module with no floor
+  fails until it is measured and floored. Every individual
+  missing docstring (512 at landing — mostly small private
+  helpers, `__init__`s, and protocol overrides whose contract
+  docstring lives on the protocol) is REPORTED by file and
+  line in the gap list: §6A.1's own division of labour —
+  "the gate enforces presence and floor; human review
+  enforces quality" — with 100% per-function coverage as the
+  standard the floors climb toward, recorded here as the
+  slice's honest deviation from the roadmap's every-function
+  letter rather than papered over. Acceptance
+  (tests/test_comment_gate.py, 6 passed): the real tree
+  passes its own gate; a deliberately stripped fixture fails
+  with its class/method/function gaps named by file and line
+  (Widget:3, spin:4, build_widget:8 in the fixture); each
+  hard rule also fails alone (bare migration, headerless
+  prompt, unexplained setting block, restating docstring).
+  Regression batch with architecture + threat model +
+  submission pack: 23 passed. Progress: **176/350**.
+- **B-177 cross-platform verification matrix** ✅ (timer crew,
+  2026-10-25): `scripts/platform_audit.py` — the §6A.2 law as
+  tooling (pathlib-only path building, explicit `encoding=` on
+  every text read/write, no `sys.platform`/`os.name` branching
+  in domain code; URL joins pinned with reasons — main.py's
+  log-redaction join, the webcal/https builders). Its first
+  runs earned their keep: three `read_text()` calls in
+  `internal/identity.py` gained explicit UTF-8, and four
+  apparent `open()` findings proved to be Pillow/urllib doors
+  (the audit now scopes to the bare builtin). Fixtures
+  (`tests/test_platform_matrix.py`, 9 tests): audit green on
+  the tree + fails an unportable fixture by file/line; BOM +
+  CRLF + non-ASCII round-trips (pinning the universal-newline
+  law text reads apply on every OS); DST fixtures from
+  zoneinfo (the lockfile already carries `tzdata` for
+  Windows); loopback TCP everywhere + the AF_UNIX door probed
+  where offered; filesystem case-sensitivity PROBED, with the
+  defences asserted (lowercase-hex content keys, storage
+  depth < 80 chars against MAX_PATH). CI matrix
+  (`.github/workflows/test.yml`) runs the identical suite on
+  ubuntu/windows/macos. **Named waivers** in
+  `PLATFORM_MATRIX.md`: the Windows and macOS columns are
+  CI-defined but NOT RUN here (no such machines reachable;
+  the manual real-Windows run stays NOT RUN), Windows named
+  pipes stay unproven (B-163's record; mTLS door carries
+  Windows), MAX_PATH + case-insensitivity defended by
+  construction. Progress: **177/350**.
+- **B-178 production-quality pipeline** ✅ (timer crew,
+  2026-10-25): ruff, mypy, pytest-cov, pre-commit added as
+  locked dev dependencies. **Enforced today**: ruff E9+F
+  (syntax + pyflakes) on `src/gpa` at ZERO — 33 findings fixed
+  at root, incl. a real undefined-name annotation
+  (`InternalResult` in `internal/client.py`, now a top-level
+  import) and dead imports across 20 files; the autofix's one
+  casualty, the load-bearing `services.events.etag_of`
+  re-export (routers call it), was restored with its noqa —
+  the regression batch (events + internal suites, 51 passed)
+  proves the tree still runs. **The ratchet** (B-176's
+  pattern, in `scripts/quality_gate.py` + CI + pre-commit):
+  `mypy --strict` over services/ai/internal/crypto stands at
+  **722** (type-arg 391, no-untyped-def 171 dominate); the
+  ceiling may only fall. **Named deviations** in
+  `QUALITY_PIPELINE.md`: wider ruff families (1,189 findings,
+  945 of them FastAPI's B008 Depends idiom) and `ruff format`
+  (137 files) are NOT enforced — a mass reformat would bury
+  the D-26 house style; coverage floors are measured at the
+  B-180 full gate, none stated before measured, with the
+  security/durability suites excluded from averages by
+  policy. In-suite: `tests/test_quality_gate.py` (3 passed;
+  the mypy half runs via the gate's --mypy mode, green at the
+  ceiling). Progress: **178/350**.
+- **B-179 signed releases + SBOM** ✅ (timer crew,
+  2026-10-25): `scripts/release_signing.py` — SBOM
+  (`sbom.spdx.json`, SPDX 2.3) generated from the committed
+  `uv.lock` by the real TOML parser (every pinned package,
+  exact version, per-artifact SHA-256 uv recorded; `uv sync`
+  verifies those same hashes at install — the lockfile law,
+  stated in the module). Train ZIPs (and the flat shape) now
+  carry the SBOM inside, the release manifest names the
+  signing key's fingerprint, and a detached Ed25519 signature
+  (``<zip>.sig``) + public key (``<zip>.pub``) land beside the
+  ZIP next to the existing ``.sha256`` sidecar. Key custody:
+  the private key comes only from
+  `GPA_RELEASE_PRIVATE_KEY_B64` / `GPA_RELEASE_KEY_FILE`
+  outside the repo — an in-repo key path REFUSES the build,
+  and `keygen` refuses to write inside the repo; with no key
+  configured the build signs with an EPHEMERAL key and the
+  manifest stamps `ephemeral: true` in plain sight (never a
+  silent unsigned or pretend-signed release).
+  `verify_release` checks, in order: sha256 sidecar, Ed25519
+  signature over the ZIP's exact bytes, SHA256SUMS against
+  every entry (no unlisted entries), SBOM package set ==
+  the shipped uv.lock's set, manifest key_id == the key that
+  verified. Acceptance (tests/test_signed_releases.py, 5
+  passed): a real train ZIP built with a throwaway key held
+  outside the repo verifies clean; **one flipped byte →
+  verification refuses** (signature + sha256 problems named);
+  in-repo key refused at both doors. Batch with release-zip,
+  comment-gate and quality-gate suites: 17 passed. Progress:
+  **179/350**.
+
+- **B-180 Phase 17 gate — the addendum proof** ✅ (gate
+  closed 2026-10-26, Yrsa): the drill
+  (`tests/test_phase17_gate.py`, log in `PHASE17_DRILL.md`,
+  shipped in the gate ZIP) walks one unbroken story —
+  resumable-upload flyer in, worker dies mid-vision-job,
+  startup recovery requeues, approval over the internal
+  encrypted API, raw-disk greps clean, audit chain verifies.
+  The drill found two root defects in earlier phases' code,
+  both fixed in the gate commit `b0d7ec2` (chunked-upload
+  completion refused image bytes; `Flyer.transcript` rested
+  in plaintext — now sealed). The gate then found three
+  more, all repaired at root before the numbers below were
+  taken: four SQLite-bound Phase 17 tests moved to
+  `PG_FILE_TESTS` with three parity twins added
+  (`0ed3dcd`); a **production** audit-chain head race on
+  PostgreSQL — B-170's read-prev/hash/advance was
+  serialised on SQLite only by the write lock — fixed with
+  FOR UPDATE + nested-transaction head creation
+  (`66f88fb`, concurrent writers 5/5, was ~1/2); and the
+  PG per-test reset now drops `alembic_version`, ending
+  B-172's future-stamp poisoning of later tests on a
+  reused suite database (`50b15bd`). **Full suite, final
+  tree `50b15bd`, collected 1,033 on both engines: SQLite
+  1,026 passed / 7 skipped / 0 failed** (two declared
+  back-to-back halves, 668 + 358 — two single runs died to
+  environment resets mid-suite, zero failures to the cut);
+  **PostgreSQL 1,006 passed / 27 skipped / 0 failed** in
+  PG mode plus the parity file **7/7** against the live
+  engine — **1,013 passed on-engine**; both engines
+  reconcile (1026 + 7 = 1006 + 27 = 1033). PG environment
+  rebuilt as a fresh initdb cluster from the preserved
+  pgserver 16.2 binaries after the workspace-preserved
+  data copy tore (missing `pg_filenode.map`). Named
+  waivers, in the open in `PHASE17_DRILL.md`: second OS
+  NOT RUN (Linux-only builder; B-177 matrix defines it);
+  coverage floors unmeasured at this gate, left unstated
+  rather than invented. Gate ZIP: `gpa-backend-v0.6-
+  2026-10-26.zip` (signed, SBOM inside, drill log inside).
+  Contract: **201 paths / 229 schemas**. Progress:
+  **180/350, Phases 0–17 complete.**
+
 ## Standing laws in force here
 
 - No Docker, anywhere, ever (native installs + uv only).

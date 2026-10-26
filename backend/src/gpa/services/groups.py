@@ -22,6 +22,7 @@ from gpa.models.groups import (
 )
 from gpa.models.identity import User
 from gpa.models.nonprofit import CandidateApproval
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services.identity import create_api_key, get_user_by_email, normalize_email
 
@@ -103,9 +104,9 @@ def update_group(db: Session, *, actor_label: str, group: Group, changes: dict) 
             ]
         )
     if "digest_time" in changes:
-        from gpa.services.notifications import _parse_hhmm
+        from gpa.services.notifications import parse_hhmm
 
-        _parse_hhmm(changes["digest_time"], "digest_time")
+        parse_hhmm(changes["digest_time"], "digest_time")
     for field, value in changes.items():
         setattr(group, field, value)
     audit.record(
@@ -355,10 +356,21 @@ def create_candidate(
     db: Session, *, actor_label: str, group: Group, kind: str, title: str
 ) -> Candidate:
     """Draft a candidate into the review queue (any member/seat with
-    draft rights; scope enforcement happens at the door in deps)."""
-    candidate = Candidate(group_id=group.id, kind=kind, title=title, created_by=actor_label)
-    db.add(candidate)
-    db.flush()  # the id exists before the announcement names it
+    draft rights; scope enforcement happens at the door in deps).
+
+    The row itself is drafted through the internal API's
+    ``candidates.create`` (B-162) — the extraction module owns
+    the review queue's shape, so its one author writes the row;
+    this module keeps the audit row and the outward
+    announcement, in the same transaction, as it always did."""
+    data = call_internal(
+        db, caller="groups", operation="candidates.create",
+        payload={
+            "group_id": group.id, "kind": kind, "title": title,
+            "created_by": actor_label,
+        },
+    )
+    candidate = db.get(Candidate, data["candidate_id"])
     audit.record(
         db, actor=actor_label, action="candidate.created",
         group_id=group.id, entity_type="candidate", entity_id=candidate.id,
@@ -366,11 +378,12 @@ def create_candidate(
     )
     # A new pending candidate is announced outward in the same
     # transaction (Phase 11, B-128): candidate.pending.
-    from gpa.services import outbound as outbound_service
-
-    outbound_service.emit(
-        db, group=group, kind="candidate.pending",
-        data={"candidate_id": candidate.id, "kind": kind, "title": title},
+    call_internal(
+        db, caller="groups", operation="integrations.emit",
+        payload={
+            "group_id": group.id, "kind": "candidate.pending",
+            "data": {"candidate_id": candidate.id, "kind": kind, "title": title},
+        },
     )
     db.commit()
     return candidate
@@ -502,11 +515,12 @@ def approve_candidate(
         reminder_service.schedule_reminders(db, group=group, event=minted_event)
         # And its birth is announced outward in the same
         # transaction (Phase 11, B-128): event.published.
-        from gpa.services import outbound as outbound_service
-
-        outbound_service.emit(
-            db, group=group, kind="event.published",
-            data=outbound_service.event_data(minted_event),
+        call_internal(
+            db, caller="groups", operation="integrations.emit",
+            payload={
+                "group_id": group.id, "kind": "event.published",
+                "event_id": minted_event.id,
+            },
         )
     # Phase 7 (B-083/B-085/B-086): approval of a task, decision,
     # or question candidate MINTS its planning entity in the

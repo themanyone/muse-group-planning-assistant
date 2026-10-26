@@ -53,9 +53,15 @@ SNAPSHOT_LIMIT = 50
 
 
 def _payload(job: Job) -> dict:
+    # Sealed at rest since B-166; payload_of is the reading
+    # law. A row that cannot be read projects as empty rather
+    # than breaking the stream.
+    from gpa.errors import AppError
+    from gpa.services import jobs as job_service
+
     try:
-        return json.loads(job.payload_json or "{}")
-    except json.JSONDecodeError:
+        return job_service.payload_of(job)
+    except (json.JSONDecodeError, AppError):
         return {}
 
 

@@ -29,8 +29,8 @@ from gpa.models.events import Event, Rsvp
 from gpa.models.groups import Group
 from gpa.models.identity import User, now_utc
 from gpa.models.notifications import EventInvite
+from gpa.internal.client import call_internal
 from gpa.services import audit
-from gpa.services import notifications as notify_service
 from gpa.services import rsvps as rsvp_service
 
 # An invite link lives a fortnight by default — long enough for
@@ -77,19 +77,23 @@ def create_invite(
     db.add(invite)
     db.flush()
     link = invite_link(settings, raw)
-    notify_service.create_notification(
-        db,
-        group=group,
-        recipient_user=member,
-        recipient_label=f"user:{member.id}" if member else f"guest:{email}",
-        recipient_email=email,
-        kind="invite",
-        subject=f"You're invited: {event.title}",
-        body_text=(
-            f"You are invited to '{event.title}'. Open this link to "
-            f"see the event and answer: {link}"
-        ),
-        event_id=event.id,
+    call_internal(
+        db, caller="events", operation="notify.request",
+        payload={
+            "group_id": group.id,
+            "audience": {
+                "user_id": member.id if member else None,
+                "label": f"user:{member.id}" if member else f"guest:{email}",
+                "email": email,
+            },
+            "kind": "invite",
+            "subject": f"You're invited: {event.title}",
+            "body_text": (
+                f"You are invited to '{event.title}'. Open this link to "
+                f"see the event and answer: {link}"
+            ),
+            "event_id": event.id,
+        },
     )
     audit.record(
         db, actor=actor_label, action="invite.created",

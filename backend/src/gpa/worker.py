@@ -24,19 +24,59 @@ from gpa.services import vision as _vision  # noqa: F401 — registers the visio
 from gpa.services import outbound as _outbound  # noqa: F401 — registers the webhook_deliver handler on import (Phase 11)
 from gpa.services import reconcile as _reconcile  # noqa: F401 — registers the reconcile handler on import (Phase 12)
 from gpa.services import retention as _retention  # noqa: F401 — registers the retention_sweep handler on import (Phase 13)
-from gpa.storage import LocalStorage, set_storage
+from gpa.services import keymgmt as _keymgmt  # noqa: F401 — registers the crypto.rotate_master handler on import (Phase 17)
+from gpa.services import repair as _repair  # noqa: F401 — registers the data_repair handler on import (B-173)
+from gpa.services import resilience as _resilience  # noqa: F401 — B-173 breakers start closed in a fresh process
+from gpa.storage import set_storage
 
 
 def main() -> None:
     """Poll the queue forever, processing jobs as they come due."""
     settings = get_settings()
+    # The internal API's audit hook (B-165), as in the API
+    # process: the worker's internal calls keep the same story.
+    from gpa.internal import auditing
+
+    auditing.install(settings=settings)
+    # The job chassis' sealing settings (B-166).
+    from gpa.services import jobs as _jobs
+
+    _jobs.set_settings(settings)
+    # B-173: breakers start closed in a fresh process.
+    _resilience.reset_all()
+    # The field-encryption service's settings (B-167).
+    from gpa.crypto import fields as _fields
+
+    _fields.set_settings(settings)
     ai_client.set_client(ai_client.build_client(settings))
     mailer.set_transport(mailer.build_transport(settings))
     messenger_transport.set_transport(messenger_transport.build_transport(settings))
     _outbound.set_settings(settings)
-    set_storage(LocalStorage(settings.storage_dir))
+    from gpa.services import audit as _audit
+
+    _audit.set_chain_secret(settings.secret_key)
+    from gpa.storage.encrypted import build_storage
+
+    set_storage(build_storage(settings))
     db = Database(settings.database_url)
     db.create_all()
+    # B-172: startup recovery — assess and repair before the
+    # first job is touched; a "refuse" verdict stops the
+    # worker with the repair named rather than working on
+    # damaged ground.
+    from gpa.services import recovery as _recovery
+
+    _session = db.session()
+    try:
+        report = _recovery.assess_and_repair(_session, settings)
+    finally:
+        _session.close()
+    for line in report["actions"] + report["notes"]:
+        print(f"recovery: {line}")
+    if report["verdict"] == "refuse":
+        for problem in report["problems"]:
+            print(f"recovery REFUSES to start: {problem}")
+        raise SystemExit(2)
     worker_id = f"worker-{uuid.uuid4().hex[:8]}"
     session = db.session()
     try:

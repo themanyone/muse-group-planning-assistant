@@ -64,7 +64,7 @@ def _tokens(text: str) -> set[str]:
     }
 
 
-def _normalised(text: str) -> str:
+def normalised(text: str) -> str:
     """One string, lowercased, single-spaced, articles dropped
     — the containment form."""
     return " ".join(
@@ -95,7 +95,7 @@ def place_similarity(a: str, b: str) -> float | None:
     place said shorter — otherwise word overlap. None when
     either side is empty: an unnamed place is not a disagreement,
     it is an absence."""
-    norm_a, norm_b = _normalised(a), _normalised(b)
+    norm_a, norm_b = normalised(a), normalised(b)
     if not norm_a or not norm_b:
         return None
     if norm_a == norm_b:
@@ -112,7 +112,7 @@ def place_similarity(a: str, b: str) -> float | None:
 def host_similarity(a: str, b: str) -> float | None:
     """Hosts either match (same normalised name) or they do not;
     an unnamed host is absence, not disagreement."""
-    norm_a, norm_b = _normalised(a), _normalised(b)
+    norm_a, norm_b = normalised(a), normalised(b)
     if not norm_a or not norm_b:
         return None
     return 1.0 if norm_a == norm_b else 0.0
@@ -281,9 +281,9 @@ def match_by_name(
     an unknown target is a flagged fact, never a silent guess.
     """
     events = _matchable_events(db, group)
-    wanted = _normalised(name)
+    wanted = normalised(name)
     if wanted:
-        exact = [event for event in events if _normalised(event.title) == wanted]
+        exact = [event for event in events if normalised(event.title) == wanted]
         if exact:
             return exact[0], 1.0
     tz_name = group.home_timezone or "UTC"

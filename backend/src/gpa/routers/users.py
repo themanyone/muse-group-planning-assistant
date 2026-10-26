@@ -15,12 +15,17 @@ from gpa.schemas.identity import (
     ApiKeyCreateRequest,
     ApiKeyResponse,
     EmailChangeRequest,
+    MfaCodeRequest,
+    MfaSetupResponse,
+    MfaStatusResponse,
     PasswordChangeRequest,
     ProfileUpdateRequest,
+    SessionItemResponse,
     TokenConsumeRequest,
     UserResponse,
 )
 from gpa.schemas.privacy import MeDataResponse
+from gpa.services import account_security as account_security_service
 from gpa.services import identity as identity_service
 from gpa.services import me_data as me_data_service
 
@@ -99,6 +104,59 @@ def confirm_email_change(body: TokenConsumeRequest, db: Session = Depends(get_db
     """Complete an email change with the token sent to the new address."""
     user = identity_service.consume_email_change(db, body.token)
     return _user_response(user)
+
+
+@router.get("/me/mfa", response_model=MfaStatusResponse)
+def mfa_status(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """My two-factor posture: on/off, a setup waiting for its
+    confirming code, and whether my roles make the offer one I
+    should take (owner/admin — B-174's mandatory-offer)."""
+    return account_security_service.mfa_status(db, _me(db, principal))
+
+
+@router.post("/me/mfa/setup", response_model=MfaSetupResponse)
+def mfa_setup(request: Request, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Start MFA enrolment. The secret is shown ONCE, here, for
+    my authenticator app; nothing protects the account until
+    /me/mfa/confirm proves the app can read it."""
+    return account_security_service.start_mfa_setup(
+        db, request.app.state.settings, _me(db, principal)
+    )
+
+
+@router.post("/me/mfa/confirm", response_model=MfaStatusResponse)
+def mfa_confirm(body: MfaCodeRequest, request: Request, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Finish enrolment with a code from the authenticator app."""
+    return account_security_service.confirm_mfa(
+        db, request.app.state.settings, _me(db, principal), body.code
+    )
+
+
+@router.post("/me/mfa/disable", response_model=MfaStatusResponse)
+def mfa_disable(body: MfaCodeRequest, request: Request, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Turn MFA off, proven by a current code. Every session is
+    revoked by the service — including, in a moment, this one."""
+    return account_security_service.disable_mfa(
+        db, request.app.state.settings, _me(db, principal), body.code
+    )
+
+
+@router.get("/me/sessions", response_model=list[SessionItemResponse])
+def list_sessions(db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Every device signed in as me (B-174), newest first, with
+    the current one marked when this call's token knows it."""
+    user = _me(db, principal)
+    return account_security_service.list_sessions(
+        db, user, current_family_id=principal.session_family_id
+    )
+
+
+@router.delete("/me/sessions/{family_id}", status_code=204)
+def revoke_session(family_id: str, db: Session = Depends(get_db), principal: Principal = Depends(get_principal)):
+    """Sign out ONE of my devices; the others keep working."""
+    user = _me(db, principal)
+    account_security_service.revoke_session(db, user, family_id)
+    return None
 
 
 @router.post("/me/api-keys", response_model=ApiKeyResponse, status_code=201)

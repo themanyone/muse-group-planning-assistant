@@ -142,6 +142,24 @@ export interface AuditEntryResponse {
   id: string;
 }
 
+export interface AutosaveConflict {
+  payload: Record<string, unknown>;
+  updated_at: string;
+  version: number;
+}
+
+export interface AutosaveRequest {
+  base_version?: number;
+  payload: Record<string, unknown>;
+}
+
+export interface AutosaveResponse {
+  conflicts?: AutosaveConflict[];
+  payload: Record<string, unknown>;
+  updated_at: string;
+  version: number;
+}
+
 export interface AvailabilityMarkRequest {
   can: boolean;
 }
@@ -171,6 +189,13 @@ export interface BalanceResponse {
   member_id?: string | unknown | null | null;
   member_label?: string;
   paid_cents: number;
+}
+
+export interface BeginUploadRequest {
+  chunk_bytes: number;
+  filename?: string;
+  sha256: string;
+  total_bytes: number;
 }
 
 export interface BriefingResponse {
@@ -905,6 +930,15 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface LoginResponse {
+  access_token?: string | unknown | null | null;
+  mfa_challenge?: string | unknown | null | null;
+  mfa_required?: boolean;
+  refresh_token?: string | unknown | null | null;
+  token_type?: string;
+  user_id: string;
+}
+
 export interface MagicLinkRequest {
   email: string;
 }
@@ -1002,6 +1036,27 @@ export interface MetaResponse {
   name: string;
   openapi: string;
   version: string;
+}
+
+export interface MfaChallengeRequest {
+  challenge_token: string;
+  code: string;
+}
+
+export interface MfaCodeRequest {
+  code: string;
+}
+
+export interface MfaSetupResponse {
+  enabled?: boolean;
+  otpauth_uri: string;
+  secret: string;
+}
+
+export interface MfaStatusResponse {
+  enabled: boolean;
+  offer_required: boolean;
+  setup_pending: boolean;
 }
 
 export interface MissingRole {
@@ -1510,6 +1565,17 @@ export interface SeatResponse {
   role: string;
 }
 
+export interface SessionItemResponse {
+  created_at: string;
+  current?: boolean;
+  expires_at: string;
+  family_id: string;
+  ip_address?: string;
+  last_seen_at: string;
+  status: string;
+  user_agent?: string;
+}
+
 export interface SessionResponse {
   access_token: string;
   refresh_token: string;
@@ -1764,6 +1830,18 @@ export interface TombstoneResponse {
   purge_after: string;
   restorable: boolean;
   title: string;
+}
+
+export interface UploadStatusResponse {
+  chunk_bytes: number;
+  filename: string;
+  parts_missing: number[];
+  parts_received: number[];
+  parts_total: number;
+  source_id?: string | unknown | null | null;
+  status: string;
+  total_bytes: number;
+  upload_id: string;
 }
 
 export interface UserResponse {

@@ -34,7 +34,7 @@ exception, not an edit to the rule.
 import calendar as calendar_module
 import json
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from gpa.errors import AppError

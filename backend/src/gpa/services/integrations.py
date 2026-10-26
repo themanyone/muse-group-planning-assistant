@@ -271,8 +271,8 @@ def _run_check(db: Session, settings: Settings, row: Integration) -> tuple[str, 
         if not config.get("bot_token"):
             return (
                 "unconfigured",
-                f"Not connected yet — add bot_token to this "
-                f"integration's config, then check again.",
+                "Not connected yet — add bot_token to this "
+                "integration's config, then check again.",
             )
         try:
             module.get_client().ping()

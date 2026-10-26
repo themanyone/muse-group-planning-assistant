@@ -26,7 +26,7 @@ def promotion_jobs(db_session):
     return [
         job
         for job in db_session.query(Job).filter(Job.kind == "notify").all()
-        if json.loads(job.payload_json).get("kind") == "rsvp.promoted"
+        if job_service.payload_of(job).get("kind") == "rsvp.promoted"
     ]
 
 
@@ -97,7 +97,7 @@ def test_waitlist_order_and_promotion_with_notification(client, app, world, db_s
     # the promoted, and the chassis runs them to success.
     jobs = promotion_jobs(db_session)
     assert jobs, "promotion must enqueue a notification job"
-    payloads = [json.loads(job.payload_json) for job in jobs]
+    payloads = [job_service.payload_of(job) for job in jobs]  # sealed at rest (B-166)
     assert any(p["to"] == f"user:{ppl['cleo']['user_id']}" for p in payloads)
     assert all(p["kind"] == "rsvp.promoted" for p in payloads)
     while job_service.process_one(db_session, app.state.settings, "test-worker"):
@@ -140,7 +140,7 @@ def test_waitlist_is_strictly_next_in_line(client, world, db_session):
     assert rows[f"user:{ppl['dan']['user_id']}"]["waitlist_position"] == 1
     jobs = promotion_jobs(db_session)
     assert len(jobs) == 1
-    payload = json.loads(jobs[0].payload_json)
+    payload = job_service.payload_of(jobs[0])  # sealed at rest (B-166)
     assert payload["to"] == f"user:{ppl['cleo']['user_id']}"
 
 

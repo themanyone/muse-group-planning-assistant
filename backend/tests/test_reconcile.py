@@ -176,6 +176,13 @@ def test_drift_is_reported_and_never_repaired(
     assert len(drift_notes(db_session, group)) == 2
 
 
+def _payload_group(job):
+    # Payloads are sealed at rest (B-166); read through the law.
+    from gpa.services import jobs as job_service
+
+    return job_service.payload_of(job).get("group_id")
+
+
 def test_the_nightly_chain_anchors_and_perpetuates(
     client, db_session, app, _fb_client, _gg_client
 ):
@@ -188,7 +195,7 @@ def test_the_nightly_chain_anchors_and_perpetuates(
             for job in db_session.query(Job)
             .filter(Job.kind == "reconcile", Job.status == "queued")
             .all()
-            if '"group_id": "' + group["id"] + '"' in (job.payload_json or "")
+            if _payload_group(job) == group["id"]
         ]
 
     assert outstanding() == []  # nothing connected yet

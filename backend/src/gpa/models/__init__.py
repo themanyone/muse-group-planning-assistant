@@ -27,7 +27,9 @@ Alembic and the test fixtures both rely on that. Domain files:
 """
 
 from gpa.models.ai import AiUsage
-from gpa.models.core import AuditLog, FileAsset, Job, Tombstone
+from gpa.models.core import AuditChainHead, AuditLog, FileAsset, Job, Tombstone
+from gpa.models.crypto import GroupKey, RecoveryEscrow
+from gpa.models.durability import DraftAutosave, UploadSession
 from gpa.models.events import (
     AnnouncementDraft,
     CalendarFeed,
@@ -41,7 +43,7 @@ from gpa.models.events import (
     Thread,
 )
 from gpa.models.groups import AgentSeat, Candidate, Group, Membership
-from gpa.models.identity import ApiKey, OneTimeToken, RefreshToken, User
+from gpa.models.identity import ApiKey, OneTimeToken, RefreshToken, User, UserDevice
 from gpa.models.integrations import (
     ExternalAccountLink,
     ExternalEventLink,
@@ -87,10 +89,24 @@ from gpa.models.planning import (
 from gpa.models.sources import Flyer, InboundAddress, Provenance, Source, SourceChunk
 
 __all__ = [
+    "Announcement",
+    "AttendanceMark",
+    "CandidateApproval",
+    "GroupKey",
+    "PruneRun",
+    "RecoveryEscrow",
+    "Resource",
+    "ResourceBooking",
+    "SubGroup",
+    "SubGroupMembership",
+    "Summary",
     "AiUsage",
     "AnnouncementDraft",
     "ApiKey",
     "AgentSeat",
+    "AuditChainHead",
+    "DraftAutosave",
+    "UploadSession",
     "AuditLog",
     "AvailabilityMark",
     "AvailabilitySlot",
@@ -139,6 +155,7 @@ __all__ = [
     "Thread",
     "Tombstone",
     "User",
+    "UserDevice",
     "WebhookEndpoint",
     "WebhookReceipt",
 ]

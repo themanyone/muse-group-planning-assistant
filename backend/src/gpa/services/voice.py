@@ -24,8 +24,8 @@ from gpa.config import Settings
 from gpa.errors import AppError
 from gpa.models.core import FileAsset, Job
 from gpa.models.groups import Group
+from gpa.internal.client import call_internal
 from gpa.services import files as file_service
-from gpa.services import jobs as job_service
 from gpa.services import sources as source_service
 from gpa.services.transcribe import JOB_KIND as TRANSCRIBE_KIND
 
@@ -102,8 +102,18 @@ def ingest_voice(
         status="awaiting_transcription", stage="awaiting_transcription",
         storage_key=storage_key, file_asset_id=asset.id,
     )
-    job = job_service.enqueue(
-        db, settings, kind=TRANSCRIBE_KIND,
-        payload={"source_id": source.id, "group_id": group.id},
+    data = call_internal(
+        db, caller="sources", operation="ai.submit_job",
+        payload={
+            "kind": TRANSCRIBE_KIND,
+            "payload": {"source_id": source.id, "group_id": group.id},
+        },
     )
+    job = db.get(Job, data["job_id"])
+    # Commit before answering (the house law, made structural
+    # at B-171): this service once rode on the job submission's
+    # commit, but the internal call's audit row (B-165) lands
+    # after that commit — the source, the job, and the audit
+    # story are one transaction and land together here.
+    db.commit()
     return source, job

@@ -54,6 +54,7 @@ from gpa.config import Settings
 from gpa.models.events import Event
 from gpa.models.groups import Candidate, Group
 from gpa.models.integrations import ExternalEventLink
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services import google_calendar as google_service
 from gpa.services import sources as source_service
@@ -243,18 +244,22 @@ def _draft_change(
         "target_title": event.title,
         "fields": fields,
     }
-    candidate = Candidate(
-        group_id=group.id,
-        kind="event_change",
-        title=f"Change to {event.title}"[:240],
-        created_by=RETURN_AUTHOR,
-        status="pending",
-        source_id=backing.id,
-        draft_json=json.dumps(draft),
-        flags_json="[]",
+    # The draft itself is written through the internal API's
+    # candidates.create (B-162): the review queue's shape has
+    # one author, whichever road a draft arrives by.
+    data = call_internal(
+        db, caller="integrations", operation="candidates.create",
+        payload={
+            "group_id": group.id,
+            "kind": "event_change",
+            "title": f"Change to {event.title}"[:240],
+            "created_by": RETURN_AUTHOR,
+            "source_id": backing.id,
+            "draft": draft,
+            "flags": [],
+        },
     )
-    db.add(candidate)
-    db.flush()
+    candidate = db.get(Candidate, data["candidate_id"])
     for field_name in fields:
         source_service.add_provenance(
             db, candidate_id=candidate.id, chunk=chunk,

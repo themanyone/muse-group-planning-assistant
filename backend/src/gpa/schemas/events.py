@@ -370,7 +370,7 @@ def project_event(
     )
     if level == "member":
         return EventResponse(**base)
-    from gpa.services.events import etag_of
+    from gpa.models.events import etag_of
 
     base.update(
         etag=etag_of(event),

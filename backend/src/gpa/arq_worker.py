@@ -30,6 +30,11 @@ def main() -> None:
     from gpa.services.jobqueue import worker_settings
 
     settings = get_settings()
+    # The internal API's audit hook (B-165), as in the other
+    # processes.
+    from gpa.internal import auditing
+
+    auditing.install(settings=settings)
     if not settings.redis_url:
         raise SystemExit(
             "GPA_REDIS_URL is not set — the arq worker needs the "

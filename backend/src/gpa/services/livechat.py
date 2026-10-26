@@ -40,7 +40,7 @@ from gpa.errors import AppError
 from gpa.models.groups import Group
 from gpa.models.identity import User
 from gpa.models.integrations import ExternalAccountLink, LiveSyncState
-from gpa.models.sources import Source, SourceChunk
+from gpa.models.sources import Source
 from gpa.services import audit
 from gpa.services import sources as source_service
 

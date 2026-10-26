@@ -39,6 +39,7 @@ from gpa.models.groups import Group
 from gpa.models.memory import PruneRun, Summary
 from gpa.models.planning import Decision
 from gpa.models.sources import Source
+from gpa.internal.client import call_internal
 from gpa.services import audit
 from gpa.services import sources as source_service
 from gpa.services import usage as usage_service
@@ -712,22 +713,23 @@ def summarise_thread(
             if " ".join(str(subject).lower().split()) not in normalised_summary:
                 continue  # extracted, but the summary did not name it
             flags = list(dict.fromkeys(item.flags + ["from_summary"]))
-            candidate = Candidate(
-                group_id=group.id,
-                kind=kind,
-                title=str(subject)[:240],
-                created_by=SUMMARY_AUTHOR,
-                status="pending",
-                source_id=None,
-                draft_json=json.dumps(item.draft),
-                confidence=item.confidence,
-                prompt_name=item.prompt_name,
-                prompt_version=item.prompt_version,
-                job_id=None,
-                flags_json=json.dumps(flags),
+            # Drafted through the internal API (B-162): the
+            # review queue's shape has one author.
+            data = call_internal(
+                db, caller="memory", operation="candidates.create",
+                payload={
+                    "group_id": group.id,
+                    "kind": kind,
+                    "title": str(subject)[:240],
+                    "created_by": SUMMARY_AUTHOR,
+                    "draft": item.draft,
+                    "confidence": item.confidence,
+                    "prompt_name": item.prompt_name,
+                    "prompt_version": item.prompt_version,
+                    "flags": flags,
+                },
             )
-            db.add(candidate)
-            db.flush()
+            candidate = db.get(Candidate, data["candidate_id"])
             created.append(candidate)
 
     audit.record(

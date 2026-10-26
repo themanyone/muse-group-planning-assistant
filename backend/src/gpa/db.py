@@ -113,6 +113,13 @@ def get_db(request: Request):
     (roadmap B-003 discipline).
     """
     session = request.app.state.db.session()
+    # B-171: every request session is durability-tracked —
+    # the middleware in create_app refuses a success answer
+    # that leaves writes uncommitted. The tracker rides the
+    # request's state, the channel the middleware can see.
+    from gpa import durability
+
+    request.state.durability_tracker = durability.track(session)
     try:
         yield session
     finally:

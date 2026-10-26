@@ -26,7 +26,7 @@ from gpa.ai import client as ai_client
 from gpa.models.core import FileAsset
 from gpa.models.groups import Group
 from gpa.models.sources import Source, SourceChunk
-from gpa.services import audit, jobs as job_service, usage as usage_service
+from gpa.services import audit, jobs as job_service, sources as source_service, usage as usage_service
 from gpa.storage import get_storage
 
 JOB_KIND = "transcribe"
@@ -91,7 +91,9 @@ def handle_transcribe(db: Session, payload: dict) -> None:
         db.add(
             SourceChunk(
                 source_id=source.id, position=position,
-                text=chunk["text"], sender=chunk["sender"],
+                # Sealed at rest (B-167), like every chunk.
+                text=source_service.seal_chunk_text(db, source.group_id, chunk["text"]),
+                sender=source_service.seal_chunk_sender(db, source.group_id, chunk["sender"]),
             )
         )
     source.status = "ready"

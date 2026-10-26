@@ -112,14 +112,6 @@ def get_question(db: Session, group: Group, question_id: str) -> OpenQuestion:
     return question
 
 
-def task_overdue(task: Task, *, now: datetime | None = None) -> bool:
-    """Overdue is computed, never stored (B-083): a task with a
-    due moment in the past that is not done or cancelled."""
-    if task.due_at is None or task.status in ("done", "cancelled"):
-        return False
-    return task.due_at < (now or now_utc())
-
-
 def visible_event(db: Session, group: Group, event_id: str, role: str | None) -> Event:
     """The event a planning write attaches to — it must exist and
     be visible to the caller (a draft's planning is as private

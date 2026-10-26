@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from gpa.errors import AppError
+from gpa.internal.client import call_internal
 from gpa.models.events import (
     AnnouncementDraft,
     Comment,
@@ -43,6 +44,7 @@ from gpa.models.events import (
     Rsvp,
     Thread,
 )
+from gpa.models.events import etag_of  # noqa: F401 — re-export: routers call event_service.etag_of (B-161)
 from gpa.models.groups import Candidate, Group, role_at_least
 from gpa.models.sources import Provenance, SourceChunk
 from gpa.services import audit
@@ -66,9 +68,11 @@ MATERIAL_FIELDS: frozenset[str] = frozenset(
 )
 
 
-def etag_of(event: Event) -> str:
-    """The event's ETag: its version, in the wire form ``"v<n>"``."""
-    return f'"v{event.version}"'
+def _seal_link_quote(db, group_id: str, quote: str) -> str:
+    """An event-source link's quote, sealed (B-167)."""
+    from gpa.crypto import fields
+
+    return fields.seal_text(db, group_id, "event_link.quote", quote)
 
 
 def _stringify(value) -> str:
@@ -400,7 +404,12 @@ def mint_from_candidate(
         db.add(
             EventSourceLink(
                 event_id=event.id, source_id=chunk.source_id,
-                field=row.field, quote=row.quote,
+                field=row.field,
+                # The quote crosses stores: opened from the
+                # provenance seal, resealed as a link quote
+                # (B-167) — never copied sealed-to-sealed,
+                # never stored in the clear.
+                quote=_seal_link_quote(db, event.group_id, source_service.open_quote(db, row)),
             )
         )
         linked_sources.add(chunk.source_id)
@@ -509,7 +518,10 @@ def create_event(
     )
     db.add(event)
     db.flush()
-    db.add(EventSourceLink(event_id=event.id, source_id=source.id, field="", quote=summary))
+    db.add(EventSourceLink(
+        event_id=event.id, source_id=source.id, field="",
+        quote=_seal_link_quote(db, group.id, summary),
+    ))
     audit.record(
         db, actor=actor_label, action="event.created",
         group_id=group.id, entity_type="event", entity_id=event.id,
@@ -519,11 +531,12 @@ def create_event(
         # Born published = published, for the outward record
         # too (Phase 11, B-128): the announcement rides the
         # same transaction as the entry itself.
-        from gpa.services import outbound
-
-        outbound.emit(
-            db, group=group, kind="event.published",
-            data=outbound.event_data(event),
+        call_internal(
+            db, caller="events", operation="integrations.emit",
+            payload={
+                "group_id": group.id, "kind": "event.published",
+                "event_id": event.id,
+            },
         )
     db.commit()
     return event
@@ -656,11 +669,13 @@ def update_event(
             # And the change is announced outward in the same
             # transaction (Phase 11, B-128): subscribed
             # webhooks hear event.changed with the field list.
-            from gpa.services import outbound
-
-            outbound.emit(
-                db, group=group, kind="event.changed",
-                data=outbound.event_data(event, fields=changed_fields),
+            call_internal(
+                db, caller="events", operation="integrations.emit",
+                payload={
+                    "group_id": group.id, "kind": "event.changed",
+                    "event_id": event.id,
+                    "event_extra": {"fields": changed_fields},
+                },
             )
     db.commit()
     return event
@@ -705,10 +720,12 @@ def publish_event(
     reminders.schedule_reminders(db, group=group, event=event)
     # The publish is announced outward in the same transaction
     # (Phase 11, B-128): subscribed webhooks hear event.published.
-    from gpa.services import outbound
-
-    outbound.emit(
-        db, group=group, kind="event.published", data=outbound.event_data(event)
+    call_internal(
+        db, caller="events", operation="integrations.emit",
+        payload={
+            "group_id": group.id, "kind": "event.published",
+            "event_id": event.id,
+        },
     )
     db.commit()
     return event
@@ -763,33 +780,36 @@ def cancel_event(
     was_published = event.status == "published"
     apply_cancellation(db, event=event, actor_label=actor_label, reason=reason)
     if was_published:
-        from gpa.services import notifications as notify_service
-
-        for recipient in notify_service.event_recipients(db, event.id):
-            notify_service.create_notification(
-                db,
-                group=group,
-                recipient_user=recipient["user"],
-                recipient_label=recipient["label"],
-                recipient_email=recipient["email"],
-                kind="change.cancellation",
-                subject=f"Cancelled: {event.title}",
-                body_text=(
+        # The fan-out itself — recipients, preferences, quiet
+        # hours — is the notifications module's work, asked for
+        # through the internal API (B-162): this module states
+        # the fact and the words; that module decides delivery.
+        call_internal(
+            db, caller="events", operation="notify.request",
+            payload={
+                "group_id": group.id,
+                "audience": {"event_id": event.id},
+                "kind": "change.cancellation",
+                "subject": f"Cancelled: {event.title}",
+                "body_text": (
                     f"'{event.title}' has been cancelled. "
                     "There is nothing to come to — sorry for the change of plans."
                 ),
-                event_id=event.id,
-                urgent=True,
-            )
+                "event_id": event.id,
+                "urgent": True,
+            },
+        )
     if was_published:
         # A published event's cancellation is announced outward
         # in the same transaction (Phase 11, B-128) — a draft's
         # cancellation announces nothing, as it never travelled.
-        from gpa.services import outbound
-
-        outbound.emit(
-            db, group=group, kind="event.cancelled",
-            data=outbound.event_data(event, reason=reason),
+        call_internal(
+            db, caller="events", operation="integrations.emit",
+            payload={
+                "group_id": group.id, "kind": "event.cancelled",
+                "event_id": event.id,
+                "event_extra": {"reason": reason},
+            },
         )
     audit.record(
         db, actor=actor_label, action="event.cancelled",
@@ -896,7 +916,7 @@ def generate_event_image(
     from gpa.services import images as image_service
     from gpa.services import sources as source_service
     from gpa.services import usage as usage_service
-    from gpa.services.vision import _is_genuine_alt
+    from gpa.services.vision import is_genuine_alt
 
     event = get_event(db, group, event_id)
     if event.flyer_id:
@@ -962,7 +982,7 @@ def generate_event_image(
         granted_scope="generated image for an event, requested by an organiser",
         chunks=[], storage_key=storage_key, file_asset_id=asset.id,
     )
-    genuine = _is_genuine_alt(description)
+    genuine = is_genuine_alt(description)
     flyer = Flyer(
         group_id=group.id, source_id=source.id, file_asset_id=asset.id,
         thumbnail_key=thumbnail_key, width=width, height=height,

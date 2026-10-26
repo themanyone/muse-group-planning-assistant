@@ -358,7 +358,20 @@ def test_erase_then_grep(client, app, db_session):
     ):
         assert marker not in data, marker
     assert b"UNIQUEB Lantern Supper" in data
-    assert b"UNIQUEB pumpkin stew night" in data
+    # B's chunk text is sealed at rest (B-167), so it is NOT
+    # in the raw file even though B is alive and well — B's
+    # survival is proven where survival means something now:
+    # the API still serves B's source, words whole.
+    assert b"UNIQUEB pumpkin stew night" not in data
+    b_sources = client.get(
+        f"/api/v1/groups/{gid_b}/sources", headers=bearer(b["owner"])
+    )
+    assert b_sources.status_code == 200
+    b_source_id = b_sources.json()[0]["id"]
+    b_detail = client.get(
+        f"/api/v1/groups/{gid_b}/sources/{b_source_id}", headers=bearer(b["owner"])
+    )
+    assert "UNIQUEB pumpkin stew night" in json.dumps(b_detail.json())
 
     # Storage: A's own object is gone; the SHARED object —
     # B's identical file — survives.

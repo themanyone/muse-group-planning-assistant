@@ -111,7 +111,7 @@ def preferences_view(db: Session, *, user: User, group: Group) -> dict:
     return {"group_id": group.id, "switches": switches, "quiet_hours": quiet}
 
 
-def _parse_hhmm(value: str, field: str) -> time:
+def parse_hhmm(value: str, field: str) -> time:
     """An "HH:MM" word as a time, or a plain-words 422."""
     try:
         hour, minute = value.split(":")
@@ -178,8 +178,8 @@ def set_preferences(
                     "validation_error",
                     detail="Quiet hours need both a start and an end (HH:MM).",
                 )
-            _parse_hhmm(start, "quiet_hours.start")
-            _parse_hhmm(end, "quiet_hours.end")
+            parse_hhmm(start, "quiet_hours.start")
+            parse_hhmm(end, "quiet_hours.end")
             tz_name = quiet_hours.get("timezone") or user.timezone or group.home_timezone
             try:
                 ZoneInfo(tz_name)
@@ -218,8 +218,8 @@ def _quiet_window(
     settings = _quiet_settings(db, user.id, group.id)
     if settings is None or not settings.quiet_start or not settings.quiet_end:
         return None
-    start = _parse_hhmm(settings.quiet_start, "quiet_start")
-    end = _parse_hhmm(settings.quiet_end, "quiet_end")
+    start = parse_hhmm(settings.quiet_start, "quiet_start")
+    end = parse_hhmm(settings.quiet_end, "quiet_end")
     if start == end:
         return None  # An empty window is no window.
     zone = ZoneInfo(settings.timezone or user.timezone or group.home_timezone or "UTC")

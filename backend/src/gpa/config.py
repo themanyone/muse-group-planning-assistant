@@ -95,6 +95,38 @@ class Settings(BaseSettings):
     # database backend, where it is never read.
     redis_url: str = ""
 
+    # Internal comms key (B-163, §6A.4): base64 of the 32-byte
+    # AES-256-GCM key that seals internal API payloads whenever
+    # a call crosses a process boundary. Empty derives a key
+    # from the app secret with a domain label (development
+    # posture); production sets a real one. Environment-only.
+    internal_key_b64: str = ""
+
+    # Service identities (B-164): a directory of <name>.seed /
+    # <name>.pub files (with <name>.pub.prev as rotation
+    # overlap). Empty = identities derived from the app secret
+    # (development custody, full machinery).
+    internal_identities_dir: str = ""
+
+    # Field-encryption master key (B-167): base64 of 32 bytes.
+    # Wraps every group's data key; never stored in the
+    # database. Empty derives a master from the app secret
+    # (development posture); production sets a real one.
+    master_key_b64: str = ""
+
+    # Encrypted file storage (B-168): when true, stored
+    # objects are sealed per-file (keys wrapped under the
+    # master key) by the EncryptedStorage driver.
+    encrypt_storage: bool = False
+
+    # Master-key rotation (B-169): the OLD master key, set
+    # by the operator only for the rotation job's run, then
+    # unset. Never a resting configuration.
+    master_key_old_b64: str = ""
+
+    # Replay window for signed internal messages (B-164).
+    internal_replay_window_seconds: int = 300
+
     # Link ingest (B-029): how long a page fetch may take, and the
     # largest page body the archive will keep. The SSRF guards
     # themselves live in services/linkfetch.py and are not knobs —

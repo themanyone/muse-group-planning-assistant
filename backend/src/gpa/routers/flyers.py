@@ -20,19 +20,22 @@ from gpa.schemas.flyers import (
 )
 from gpa.schemas.sources import FlyerResponse
 from gpa.services import flyers as flyer_service
+from gpa.services import sources as source_service
 
 router = APIRouter(prefix="/api/v1/groups", tags=["flyers"])
 
 
-def _flyer_response(flyer) -> FlyerResponse:
+def _flyer_response(db: Session, flyer) -> FlyerResponse:
     """The picture record's wire shape — one builder, shared
-    with routers/sources.py's detail view in spirit."""
+    with routers/sources.py's detail view in spirit. The
+    transcript opens through the sources sealing funnel
+    (B-180): at rest it is sealed, on the wire it is whole."""
     return FlyerResponse(
         id=flyer.id, source_id=flyer.source_id,
         width=flyer.width, height=flyer.height,
         thumbnail_key=flyer.thumbnail_key,
         alt_text=flyer.alt_text, alt_text_status=flyer.alt_text_status,
-        transcript=flyer.transcript,
+        transcript=source_service.opened_flyer_transcript(db, flyer),
         parent_flyer_id=flyer.parent_flyer_id,
         region_json=flyer.region_json,
         generated=flyer.generated,
@@ -69,7 +72,7 @@ def update_alt_text(
         db, actor_label=principal.label, group=context.group,
         flyer_id=flyer_id, alt_text=body.alt_text,
     )
-    return _flyer_response(flyer)
+    return _flyer_response(db, flyer)
 
 
 @router.get("/{group_id}/print/month", response_model=PrintMonthResponse)
