@@ -23,14 +23,16 @@ uv run alembic upgrade head   # migration path (GPA_DATABASE_URL)
 ```
 
 Verified 2026-10-24: fresh `uv sync` → `./run.sh` → `/health` ok;
-Alembic up/down/up clean; **877 tests passing on SQLite and 865
-on PostgreSQL, 0 failed on either** (156/350 slices: Phases 0–15
-complete) — counts from the Phase 15 gate runs against the final
-Phase 15 tree 2026-10-25 (881 collected on both engines = 853 at
-the Phase 14 gate + 28 new Phase 15 tests; the engines' passed
-delta is exactly their skip delta — parity tests skip on
-SQLite, named SQLite-file tests skip on PG; details and the
-two-halves method in TEST_REPORT's Phase 15 addendum). ZIP-Beta cut at the Phase 8 gate
+Alembic up/down/up clean; **1056 tests passing on SQLite, 7
+skipped, 0 failed** (200/350 slices: Phases 0–18 complete) —
+counts from the Phase 18 gate's own full-suite log
+2026-10-26 (1063 collected = 1033 at the Phase 17 gate + 25
+docs-gate tests + 5 Phase 18 gate tests; 1026 passed at
+Phase 17 + 30 new = 1056; the 7 skips are the PostgreSQL
+parity tests standing down without an admin URL, by design.
+The Phase 18 gate's PostgreSQL leg is NOT RUN — a docs
+phase; PG parity was last proven at the Phase 17 gate,
+1013 on-engine). ZIP-Beta cut at the Phase 8 gate
 (releases/gpa-backend-v0.3-2026-10-24.zip, §8 anatomy); ZIP-RC cut
 at the Phase 12 gate (releases/gpa-backend-v0.4-2026-10-25.zip,
 §8 anatomy) — Phases 9–12 fold into it; **ZIP-Final cut at the
@@ -1445,6 +1447,670 @@ parses the model so it cannot drift from the code.
   (`f9ce3a2`), and Alembic's fileConfig silencing the
   app's loggers (`612ba7d`) — all recorded in TEST_REPORT's
   Phase 15 addendum.
+
+### Phase 18 — Documentation, diagrams, code atlas (B-181 → B-200): ✅ COMPLETE (2026-10-26)
+- **B-181 documentation architecture** ✅: `docs/` tree opened with
+  `docs/README.md` — the index ordering every chapter by reader
+  (user → admin → frontend → backend → operator), the binding
+  docs-as-code rules (same repo/review/ZIP; one truth, three
+  depths; honesty markers), and the slice/state table B-182 →
+  B-199 build inside. Mermaid gate: `scripts/check_mermaid.py`
+  (stdlib-only — fence closure, known diagram type, balanced
+  brackets/quotes) runs in `test.sh` before the suite and is
+  pinned by `tests/test_docs_gate.py` (6 tests): a deliberately
+  broken diagram fails BY FILE (unclosed bracket, unknown type,
+  unterminated fence fixtures), and every diagram already in the
+  shipped surface (docs/ + submission/ + root .md, 3 diagrams)
+  parses. Honest boundary recorded in both the checker and the
+  index: a full JS render is not claimed. Next: B-182.
+- **B-182 user guide I — start + groups** ✅:
+  `docs/01-user-guide-start-and-groups.md` — task-shaped chapter
+  covering account registration (12+ password policy, progressive
+  lockout), all three sign-in roads (password + MFA challenge,
+  30-minute single-use magic link as a full sign-in, refresh
+  family + logout revocation), MFA setup/confirm/disable with
+  the honest boundary that **no MFA recovery codes exist** in
+  this build, profile/password/email/devices/API keys, group
+  creation with the three visibilities (private / invite /
+  public-listed) and the last-owner rule, the five-role ladder
+  in plain words (seats hold a role but can never approve),
+  invite → claimable passwordless account → accept/decline,
+  group settings dials, and per-group notification preferences
+  + quiet hours (held, never dropped; urgent never held;
+  Messenger leg honestly `driver_unavailable`). Every task
+  names its API door once. Ends with a completable first-success
+  checklist — the B-200 usability test reads from it. Pinned by
+  a new test in `tests/test_docs_gate.py` (topic coverage +
+  honesty markers + index link); docs gate now 7 tests,
+  regression batch 13 passed. Next: B-183.
+- **B-183 user guide II — sources** ✅:
+  `docs/02-user-guide-sources.md` — every way in as a task:
+  paste a chat (parser shapes, nothing dropped, timestamps kept
+  raw), file upload (10 MiB default cap, group quota, content
+  sniffing + virus hook, scanned-PDF refusal), newsletter
+  (section chunks, inline links, image placeholder), flyer
+  photo (byte sniff, EXIF orientation, `awaiting description`
+  as a visible defect), board photo (one source,
+  `awaiting_segmentation`, placeholder chunk, children inherit
+  the permission record), link (guarded fetch — re-validated
+  redirects, metadata blocked, 2 MiB cap, failed fetch archives
+  nothing), email-in (token shown once, hashed; forged token
+  refused + audited), voice note (awaiting_transcription + job
+  id), and live-chat registration (person-only grant, seats
+  refused). Opens with the permission record in plain words
+  (`granted_by`/`granted_scope`, never leaves the group) and
+  closes with revocation: organiser+ delete removes chunks +
+  provenance at once, drafts are never deleted (they gain
+  `source_deleted_at`), restore whole inside 30 days. Pinned by
+  a new docs-gate test; regression batch 14 passed. Next: B-184.
+- **B-184 user guide III — review queue** ✅:
+  `docs/03-user-guide-review-queue.md` — the trust workflow as
+  tasks: reading a candidate (draft, confidence, flags,
+  provenance, prompt name/version, machine authors), provenance
+  quotes under every field with `supported: false` shown never
+  hidden, flyer region boxes with their verdicts, the closed
+  flag vocabulary in plain words (low_confidence /
+  missing_required / unsupported / ambiguous_date /
+  unresolved_date / conflicting on BOTH sides /
+  shared_chunk_unflagged / possible_duplicate with
+  `duplicate_of`), editing (status `edited`, flags recomputed
+  server-side), approve (mint in the same transaction; refusal
+  rolls back; the group's `review_min_role` +
+  `review_approvals_required` distinct-approver policy;
+  `seat_cannot_approve` in-service) / reject, both merges
+  (candidate→candidate kept whole; candidate→event settled by
+  distinct-source support, unsupported never moves, sources
+  linked per field), `event_change` candidates
+  (`change_target_unknown`, approval applies through the
+  change door), and contradiction resolution (pick a said
+  value only; better-sourced arrivals settle their own).
+  Route names verified against the live routers (merge-event,
+  contradictions resolve). Pinned by a new docs-gate test.
+  Next: B-185.
+- **B-185 user guide IV — calendar + events** ✅:
+  `docs/04-user-guide-calendar-and-events.md` — the three views
+  as tasks (agenda expanded to occurrences with cursor paging;
+  month as whole Monday-first weeks; tonight = 15:00 → 03:00
+  group-local, pinned locations first, flyer thumbnail +
+  description status riding along), the event page's
+  server-built public/member/organiser projections (member-only
+  fields ABSENT, not blanked) with change history and
+  needs-reannounce, discussion (edit/delete-own tombstones,
+  organiser hide audited, the same thread system as planning),
+  RSVP + the STRICT next-in-line waitlist (promotion notifies,
+  except a self-caused promotion), guest invite answers, taking
+  events away (.ics with STATUS:CANCELLED, server-built Google
+  add link, feed tokens shown once + hashed + revocable, moved
+  occurrences as feed exceptions), the print month (facts only,
+  nothing invented), conflicts (host/place/travel + resource
+  overlaps, strict overlap so back-to-back never flags), and
+  organiser edit/cancel/clone/recurrence (If-Match version law,
+  clone born a draft without RSVPs/discussion/history,
+  occurrences never rules on screen). Pinned by a new docs-gate
+  test. Next: B-186.
+- **B-186 user guide V — planning** ✅:
+  `docs/05-user-guide-planning.md` — tasks (status flow,
+  computed `overdue`/`unclaimed`, day-only due = end of local
+  day, and THE OWNER LAW: extraction words land only in
+  `suggested_owner_label`; a real owner is set solely by a
+  person's act), the decisions log (supersede chains both
+  ways, `?current=true` settled truth, superseding a
+  non-current decision refused), open questions (resolve may
+  mint its decision in the same act; drop is a settled state)
+  + the event gaps list, polls (choice/date, one current vote
+  per person, apply-winner moves or mints through the edit
+  door, tie/zero-votes refused in plain words), checklists +
+  role slots (one-person claims, another's line refused) +
+  the folded supplies view, budget-lite (integer cents end to
+  end, words-only payers keep no member, stops at group truth
+  by design), the availability finder (marks only against
+  proposed slots — the privacy boundary is the shape;
+  deterministic ranking), and templates (day-offset tasks,
+  claims reopen as slots on save/instantiate, the 7 starters
+  named). Route names verified against the live routers
+  (availability/slots, costs vs budget). Pinned by a new
+  docs-gate test; regression batch 17 passed. Next: B-187.
+- **B-187 user guide VI — reminders, digests, memory** ✅:
+  `docs/06-user-guide-reminders-digests-memory.md` — reminders
+  (materialised per coming/maybe RSVP + host; defaults 7d/1d
+  at 09:00 + morning-of 08:00 event-local; a move supersedes
+  old rows and deletes their queued jobs in the same act;
+  quiet hours hold, urgent never held, cancellation urgent),
+  the B-103 AI-wording leash (ships only if start/place/every
+  bring item survive verbatim; both versions + `wording_source`
+  kept), change alerts (organiser-approved re-announce draft,
+  exactly the RSVP'd + guests, sent once), the weekly digest
+  (planning digest + next week's events, Monday default,
+  settings re-anchor, manual run, alt-text render check),
+  asking the memory (approved-history-only corpus, pruning
+  NOT embedding RAG, budget checked per pass with
+  `budget_stopped` stated, every citation verified, the
+  "I couldn't verify this" refusal), summaries/briefings/
+  recaps as drafts until a person approves (approving a
+  newsletter files it as a source — the loop closes), run
+  transparency + purge (receipts go, summaries stay), and
+  the honest may/may-not list (no approving, no assigning,
+  no unverifiable facts, no unapproved corpus, no
+  over-budget spend, no self-sending). Routes verified
+  against the live memory/notifications routers. Pinned by
+  a new docs-gate test; regression batch 18 passed. Next:
+  B-188.
+- **B-188 admin + operator guide** ✅:
+  `docs/07-admin-and-operator-guide.md` — every dangerous
+  button with its consequence BEFORE its instructions, per
+  the roadmap line: the settings pack (one validated
+  transaction, one bad dial changes nothing, per-field
+  old→new audit; the review-policy and null-budget dials'
+  consequences named), agent seats (key shown once, hashed
+  after; acts attributed to the seat; `seat_cannot_approve`
+  in-service), integrations (config sealed whole, key NAMES
+  only on reads; health board reads records, pings nothing;
+  Facebook/Google press is a person's, Google one-way out
+  with edits returning as change candidates; reconcile
+  NEVER writes outward; Samtal edits return as candidates;
+  webhook tokens shown once/hashed, derived signing secret,
+  300 s window, replay refused; outbound secrets sealed,
+  deliveries die at the attempt cap), the AI budget dial
+  (ledger, deferral at cap, no run-it-anyway button), audit
+  reading (same-transaction writer, hash chain + verify
+  door, failure = incident), member data requests
+  (`/users/me/data` with no hashes by construction, import
+  arrives invited + dry-run rolls back), data export
+  (owner + live person session only, no API key can; secrets
+  withheld by column rule; audit commits before the answer),
+  and group erasure (hard, total, irreversible — FK-fixpoint
+  plan, storage sweep, compacted DB greps clean, one audit
+  row keeps only the fact; double confirmation = exact name
+  + ERASE, a mismatch erases nothing). Routes verified
+  against the live privacy/groups/integrations routers.
+  Pinned by a new docs-gate test; regression batch 19
+  passed. Next: B-189.
+- **B-189 architecture diagram pack** ✅:
+  `docs/08-architecture-diagram-pack.md` — six lengthy
+  Mermaid diagrams, each with a prose walking tour naming
+  every box and arrow: (1) system context — the five
+  caller kinds (member, admin, seat that can never
+  approve, link-holding guest, public visitor reaching
+  only the absent-not-blanked projection) and the seven
+  outside systems behind their three-faced boundaries;
+  (2) the process view — API process (middleware with the
+  redacted access log + durability guard, thin routers
+  that never import a model, the deps.py door, services,
+  internal API, AI layer), the gpa-worker (startup
+  recovery first, claim loop, the shared handler
+  registry), the optional arq twin, and the shared ground
+  (SQLite WAL/synchronous=FULL or PostgreSQL, sha256
+  content-addressed storage, jobs as rows in the same
+  database); (3) the module map — the B-161 module names,
+  cross-module work through the internal API, the pinned
+  shrink-only direct edges, audit + crypto as the shared
+  targets, composition as wiring that owns no rules;
+  (4) the request lifecycle as a sequence diagram —
+  credential, request id + redaction, the deps door
+  (private group = 404), one service call, envelope
+  dispatch in the caller's transaction, commit-before-
+  answer, problem JSON; (5) the job lifecycle as a state
+  diagram — queued in the caller's transaction, claim by
+  conditional update (16-candidate scan), done at
+  progress 100, failure backoff (base doubled per
+  attempt), the FREE deferral when a dependency's breaker
+  is open (B-173), dead at the attempt cap with the row
+  kept visible, stuck rows requeued by startup recovery;
+  (6) deployment topology — native systemd install (no
+  Docker), the proxy as the only public face (API binds
+  localhost), the 03:15 backup timer, the 0640 env file,
+  three writable paths. Honesty markers carried at the
+  point of use: the MCP/database-bus topology is Phase
+  28's, not built here; the nginx example's live
+  validation is NOT RUN; no live third-party account is
+  connected in this environment. Mermaid gate now 9
+  diagrams, all sound. Pinned by a new docs-gate test
+  (six diagrams + topic coverage); docs gate now 14
+  tests. Verification honesty: the run's full-suite
+  attempt was killed by a service restart at ~68% with
+  zero failures in its log; the slice committed on the
+  docs-slice regression pattern (docs gate + architecture
+  + submission batch 25 passed, threat model 6 passed —
+  31 in all) — a full-suite
+  green for Phase 18 is the B-200 gate's to prove.
+  Next: B-190.
+- **B-190 module atlas** ✅:
+  `docs/09-module-atlas.md` — one chapter per module in
+  the B-161 map (22 chapters: the 19 service modules plus
+  ai, storage, internal, and composition), each carrying
+  its job, its public surface, the tables it owns, the
+  internal operations it offers and consumes, its
+  invariants, its failure modes, and a compact flowchart
+  diagram whose boxes and arrows the chapter prose names.
+  Verified against the live tree: module names and
+  service assignments are `modulemap.py`'s own, table
+  names are the models' own `__tablename__` values, and
+  operation names/owners/scopes are the registry's own
+  seven (`candidates.create`, `events.publish`,
+  `notify.request`, `notify.rsvp_promotion`,
+  `jobs.enqueue`, `ai.submit_job`, `integrations.emit`).
+  Honesty markers at the point of use: there is NO single
+  `api.py` in this build (the roadmap line's parenthetical
+  predates the layout) — each module's public surface is
+  its router family plus its services' public functions;
+  file-vs-owner splits are stated where they differ
+  (`agent_seats`/`candidates` physically in
+  `models/groups.py`, owned by identity/extraction;
+  `jobs`/`audit_log`/`tombstones`/`file_assets` in
+  `models/core.py`, owned by jobs/audit/truth/storage);
+  privacy and demo own no tables, deliberately. Mermaid
+  gate now 28 diagrams in docs/, all sound. Pinned by a
+  new docs-gate test (every module + all seven operations
+  + the atlas vocabulary); docs gate now 15 tests.
+  Regression batch (docs gate + architecture + internal
+  API + submission pack + threat model) 41 passed. Full
+  suite NOT re-run — docs/tests only, no src changes
+  (Phase 18 precedent); a full Phase 18 green is the
+  B-200 gate's to prove. Next: B-191.
+- **B-191 internal encrypted API document** ✅:
+  `docs/10-internal-encrypted-api.md` — the §6A.4 protocol
+  in full, verified against the live internal package:
+  the envelope field by field (`InternalRequest` /
+  `InternalResult`, wire form with `payload_sealed` and
+  the nonce-bound result), signing and encryption steps
+  in the door's real checking order (shape → signature
+  before any decryption → caller-is-signer → replay →
+  GCM open → registration/scope in the one dispatch
+  path), AES-256-GCM with canonical-header AAD and the
+  Ed25519 / HMAC-SHA256 channel profiles (never mixed),
+  the four transport profiles (in-process B-166 with
+  sealed-at-rest job payloads; Unix socket; loopback TCP
+  + mutual TLS with the internal CA; Windows named pipe
+  honestly NOT RUN), the identity + scope registry (the
+  seven operations with owners/scopes, the nine caller
+  grants, key ids, directory vs derived identity
+  custody), the replay defence (300 s window + seen-nonce
+  store, with replay.py's own restart bound stated), and
+  key rotation (identity overlap via `.pub.prev`; the AES
+  comms key honestly non-overlapping — a coordinated
+  restart-window act; data keys a separate family).
+  Three sequence diagrams with prose: a publish
+  (`events.publish` by `core`), an AI extraction
+  submission (`ai.submit_job`; worker identity holds no
+  `ai:submit` by design), and a rejected impersonation
+  attempt (caller≠signer → `internal_bad_signature`, then
+  as-itself → `internal_scope_denied`). Closes with the
+  B-165 audit shape (never the payload) and the full
+  refusal table (all seven `internal_*` codes). Honesty
+  markers at the point of use: the roadmap's example
+  operation names (`ai.extract`,
+  `integrations.facebook.create_event`) exist as families
+  folded into `ai.submit_job` / `integrations.emit`; the
+  Phase 28 bus reuses this machinery and is not built yet.
+  Mermaid gate now 31 diagrams in docs/. Pinned by a new
+  docs-gate test (protocol vocabulary + three sequence
+  diagrams); docs gate now 16 tests. Regression batch
+  (docs gate + architecture + internal API/audit/
+  identity/profiles/transport + submission pack + threat
+  model) 69 passed. Full suite NOT re-run — docs/tests
+  only, no src changes (Phase 18 precedent); a full
+  Phase 18 green is the B-200 gate's to prove.
+  Next: B-192.
+- **B-192 data-model document + ER pack** ✅:
+  `docs/11-data-model-and-er-pack.md` — every entity of
+  roadmap §4 and every table since: 69 tables in
+  `Base.metadata`, grouped into six Mermaid `erDiagram`
+  packs (identity, sources, events, planning, comms,
+  system), each with a prose walking tour naming every
+  box and arrow; the three store-wide rules (group
+  ownership via `group_id`, VARCHAR(36) UUID keys + UTC
+  storage + integer `amount_cents`/`cost_micros`, JSON
+  payloads as `*_json` TEXT); and the complete appendix
+  inventory (columns in definition order, foreign keys,
+  unique sets, named indexes) generated from the models'
+  own metadata. Sealed vs hashed vs plain is told in
+  full, at field level: field-sealed (`enc:v1:`, B-167)
+  `chunk.text`, `chunk.sender`, `provenance.quote`,
+  `event_link.quote`, `flyer.transcript`; whole-sealed
+  (B-127) `integrations.config_sealed`,
+  `outbound_webhooks.secret_sealed`, `users.totp_secret`;
+  key material `group_keys.wrapped_key` +
+  `recovery_escrow.sealed_master`; hashed-at-rest
+  Argon2id password + the seven `token_hash`/`key_hash`
+  families (shown once, prefix kept); and the honest
+  boundary that most group content rests plain, as the
+  threat model has recorded since B-139. Migration
+  chain 0001–0021 named revision by revision. The
+  model ↔ document checker its roadmap line orders
+  lives in `tests/test_docs_gate.py` (stdlib-only:
+  parses every `__tablename__` out of the model files
+  and fails, naming the table, if any is missing from
+  the chapter). CHECKER REPAIR found by the slice: the
+  B-181 Mermaid gate's naive brace counting read
+  erDiagram crow's-foot cardinality (`o{`, `}|`) as
+  unclosed block braces, so no sound ER diagram could
+  ever pass it — `scripts/check_mermaid.py` now
+  normalises the crow's-foot tokens in erDiagram blocks
+  only, proven both ways by a new gate test (sound ER
+  passes; a truly dropped entity closing brace still
+  fails by file). Mermaid gate now 37 diagrams in
+  docs/. Docs gate now 18 tests. Regression honesty:
+  the first regression batch showed 1 failure in
+  `test_internal_transport.py` (unrelated to this
+  slice's files); that file re-ran 6/6 alone and the
+  full batch (docs gate + architecture + submission +
+  threat model + internal API/audit/identity/profiles/
+  transport) re-ran 71 passed, green. Full suite NOT
+  re-run — docs/tests/checker only (Phase 18 precedent);
+  a full Phase 18 green is the B-200 gate's to prove.
+  Next: B-193.
+- **B-193 AI pipeline documents** ✅:
+  `docs/12-ai-pipeline.md` — every AI pipeline with
+  flowcharts and sequence diagrams, each with a prose
+  walking tour: text extraction (one pipeline, five kinds;
+  windows of at most 40 chunks / 12,000 characters; shape
+  check with one repair retry then a loud `ModelError`;
+  quote verification — an unmatched quote is
+  `supported: false` with no provenance; dates resolved by
+  the deterministic resolver, never by the model; coverage
+  check; machine author `system:extraction`, decided drafts
+  never superseded), flyer reading (the picture twin:
+  provenance is a validated region, transcript + genuine-only
+  alt text, no QR decoder pretended, an empty reading mints
+  no candidate), board segmentation (SAM wire client vs the
+  decided vision-box fallback behind one protocol,
+  `valid_region` on every box, the audit names the driver
+  that actually cut), de-duplication (matching weights
+  title .35 / time .35 / place .20 / host .10 at
+  `MATCH_THRESHOLD` 0.6, a bare title halved and never
+  proposing; flyer average-hash at most 6 bits + same title
+  or date → `possible_duplicate` + `duplicate_of`, a
+  suggestion never a merge), change detection
+  (`extraction_changes` v1, requestable but not in the
+  default run, `change_target_unknown`, approval applies
+  through the change door), and the context-pruning engine
+  (NOT embedding RAG — a model reads and judges; approved
+  history only; kept in original order with provenance,
+  dropped named in the `PruneRun` row; reconsider passes
+  capped at 3 with `budget_stopped` stated; citations
+  verified or the answer is refused). Prompt-versioning
+  rules in full (fifteen prompts, `manifest.json` pinning
+  version + SHA-256 per template, load fails loudly on an
+  unbumped edit, name+version recorded on every candidate,
+  single-pass `{{NAME}}` substitution). Evaluation method:
+  three harnesses, one habit — golden sets through the real
+  pipeline on the fixture driver, deliberately imperfect
+  corpora, 0.02 gate tolerance (extraction place 0.50 /
+  cost recall 0.00; vision clean 1.00, the other three
+  0.75, overall 0.8125; pruning floors in its gate test).
+  Five worked examples traced through fixture data end to
+  end (the club-night chat, the 12-candidate newsletter,
+  the Harvest Supper flyer, the golden board's 3 posters,
+  the forty-message trip argument). Honesty markers at the
+  point of use: no live Meta endpoint, SAM endpoint, or
+  transcription service exists here — the scores measure
+  the verification machinery this codebase owns. Mermaid
+  gate now 43 diagrams in docs/. Pinned by a new docs-gate
+  test (pipeline vocabulary + at least five diagrams incl.
+  a sequence diagram); docs gate now 19 tests. Regression
+  batch (docs gate + extraction/vision/pruning evaluations
+  + architecture + prompts + extraction + vision pipeline +
+  pruning + matching + merging) 75 passed. Full suite NOT
+  re-run — docs/tests only, no src changes (Phase 18
+  precedent); a full Phase 18 green is the B-200 gate's to
+  prove. Next: B-194. Progress: **193/350**.
+- **B-194 security + cryptography document** ✅:
+  `docs/13-security-and-cryptography.md` — the threat
+  model in prose (assets in order, eight actors, Case #1:
+  unapproved content becoming public truth, decided at the
+  review queue where `seat_cannot_approve` refuses seats in
+  the service; per-family answers: rate limit, refresh-family
+  revocation, SSRF guarded fetch, content sniffing, hashed
+  tokens), the key hierarchy diagram with walking tour
+  (master key in the environment only, never in the DB;
+  wraps per-group data keys in `group_keys.wrapped_key` and
+  per-file keys in GPAE1 headers; domain-separated
+  derivations for the internal comms key and the blind
+  index; recovery escrow — scrypt seals of the master,
+  row-finding check keyed by the app secret, mint =
+  revocation, backups grep clean for key material),
+  encryption at rest told by layer (field-sealed `enc:v1:`
+  AES-256-GCM bound to group+field: chunk text/sender,
+  provenance + event-link quotes, flyer transcript;
+  whole-sealed `config_sealed` / `secret_sealed` /
+  `totp_secret`; GPAE1 encrypted storage with the recorded
+  master-not-group deviation; sealed job payloads; hashed
+  never sealed credentials — Argon2id + `token_hash` /
+  `key_hash` families, shown once), encryption inside
+  (chapter 10's signed-before-decrypted envelope, replay
+  window, proxy TLS + log redaction), account security
+  (12-char + local breached-list policy, 15-minute HS256
+  access + rotating refresh families, hand-rolled RFC 6238
+  TOTP MFA with `mfa_challenge` and spent steps, progressive
+  lockout `account_locked`, per-device sessions, new-device
+  notice), and the audit chain (HMAC-SHA256 `row_hash` /
+  `prev_hash` from GENESIS, head read FOR UPDATE, link-walk
+  verify naming the wound). The honest-boundaries chapter
+  closes it, per its roadmap line: NO member-to-member
+  end-to-end encryption is claimed, most ordinary group
+  content rests plain (candidate drafts + discussion named
+  next adopters), a compromised running server is out of
+  scope, the chain is keyed evidence not magic (database +
+  app secret recompute it), and metadata is structural.
+  Mermaid gate now 47 diagrams in docs/. Pinned by a new
+  docs-gate test (security vocabulary + at least four
+  diagrams incl. a sequence diagram); docs gate now 20
+  tests. Regression batch (docs gate + threat model +
+  field encryption + encrypted storage + key management +
+  audit chain + account security + secrets audit +
+  architecture + internal transport) 70 passed (corrected
+  from 80, which was recorded before the batch's own log
+  arrived; the log reads 70 passed, 1 warning). Full suite
+  NOT re-run — docs/tests only, no src changes (Phase 18
+  precedent); a full Phase 18 green is the B-200 gate's to
+  prove. Next: B-195. Progress: **194/350**.
+- **B-195 durability + recovery document** ✅:
+  `docs/14-durability-and-recovery.md` — the §6A.5
+  machinery as diagrams and drills: the storage foundation
+  (WAL + synchronous=FULL + foreign_keys=ON +
+  busy_timeout=5000 on every connection through the one
+  db.py door), transaction discipline made structural
+  (WriteTracker flush marks, commit clears, the durability
+  middleware answering a success with uncommitted writes
+  as 500 `uncommitted_writes` after rollback; error
+  responses pass untouched), draft autosaves (base_version
+  optimistic concurrency; a stale save lands as a kept
+  conflict copy, 409 `draft_conflict` with both versions),
+  resumable uploads (offset law per part, status reports
+  `parts_missing`, completion verifies the whole-file
+  SHA-256 — mismatch 422, session stays open — and
+  dispatches on the sniffed kind), boot recovery
+  (`assess_and_repair`: WAL checkpoint, stuck jobs past the
+  900 s lease requeued/failed with audit, orphan parts
+  swept with open sessions never touched, unknown
+  migration revision refuses naming the manual repair;
+  verdicts serve/repaired/refuse, worker exits 2 on
+  refuse) with the double-verdict guard (a repaired ground
+  must immediately re-score serve), the watchdog told
+  honestly (no separate watchdog daemon exists — the work
+  is boot recovery + deep /health `stuck_running` +
+  `scripts/requeue_stuck_jobs.py` list-before-apply + the
+  daily verified backup; a standalone watchdog process and
+  index/cache rebuilds are NOT built and the gap is
+  recorded, not claimed over), backup/restore (SQLite
+  online backup API bundle + storage + sha256 manifest +
+  RESTORE.md; restore is verify-then-place, a damaged
+  bundle restores nothing; the B-146 drill and its
+  WAL-vacuum checkpoint find), and the chaos-harness
+  method (the three-leg invariant judged below the API by
+  integrity/foreign-key pragmas, SIGKILL legs at named kill
+  points + in-process diskfull/readonly legs, the seeded
+  100-run pass at 100/100, CHAOS_REPORT.md; the power-loss
+  profile stated honestly — SIGKILL under WAL+FULL is the
+  fsync-window leg, real hardware power loss NOT RUN).
+  Five Mermaid diagrams (foundation flowchart, tracker
+  sequence, upload state diagram, recovery flowchart,
+  chaos flowchart), each with a walking tour. Pinned by a
+  new docs-gate test (durability vocabulary + sequence +
+  state diagrams); docs gate now 21 tests. Regression batch
+  (docs gate + threat model + durability + startup
+  recovery + chaos + architecture + submission pack) 53
+  passed with the new test initially failing on a
+  line-wrapped phrase ("online backup" split across lines)
+  — fixed in the chapter, docs gate re-run 21 passed,
+  Mermaid gate 52 diagrams in docs/. Full suite NOT re-run
+  — docs/tests only, no src changes (Phase 18 precedent);
+  a full Phase 18 green is the B-200 gate's to prove.
+  Next: B-196. Progress: **195/350**.
+- **B-196 API + frontend guide** ✅:
+  `docs/15-api-and-frontend-guide.md` — everything Geoffrey
+  and Henry need without reading backend code, verified
+  against the live tree: the contract (`OPENAPI.json`, 201
+  paths / 229 schemas, `frontend_types.ts`), the three
+  credentials kept apart (session Bearer vs API key in
+  `X-API-Key: gpa_…` — never Bearer, the B-160 lesson — vs
+  feed token in the URL), and three auth sequence diagrams
+  with walking tours (password sign-in with the MFA branch:
+  the password earns a 5-minute single-use `mfa_challenge`,
+  never a session, and a correct code spends its TOTP step;
+  magic link: 202 whether or not the account exists, hashed
+  30-minute single-use token, full sign-in even on MFA
+  accounts by the B-174 law; refresh rotation: spend-and-
+  replace within a family, a spent token presented again
+  revokes the WHOLE family, newest included). Pagination
+  told exactly: only the agenda cursor-paginates (`limit`
+  default 50, 1–200; opaque `next_cursor`, `null` at the
+  end; an unreadable cursor is a named 422, never a silent
+  restart); the month view returns whole weeks. Errors: the
+  one problem+json shape, branch on `code` never on words,
+  and the COMPLETE registry table — all 35 codes from
+  `src/gpa/errors.py` with HTTP status and the frontend
+  action for each, internal-door codes included with their
+  reason. SSE: the four frames (`snapshot` once on connect,
+  `job.progress`, `comment.created`, `notification.created`
+  — the last carrying no body by design), polled from the
+  durable tables never an in-memory bus, with the honest
+  boundary that synchronous ingests never appear (their
+  create response carries final stage/progress) and
+  `GET /api/v1/jobs/{id}` as the polling fallback. ETag /
+  If-Match (`"v<n>"`, 409 `stale_version`) and autosave
+  `base_version` / `draft_conflict`. Idempotency TOLD
+  HONESTLY: **no Idempotency-Key header store exists on the
+  public HTTP API** (D-15's remaining half, recorded in
+  Decisions below) — the safe ground is the naturally
+  idempotent upserts (RSVP, poll vote, availability marks),
+  the webhook receipt's exactly-once, and the re-GET +
+  If-Match retry pattern; creates are the one unsafe retry.
+  Bruno walkthrough with its honesty marker (the collection
+  is still the B-010 skeleton — one health request; the
+  contract of record is OPENAPI + types + the SDKs).
+  Mock-mode guide: `GPA_AI_DRIVER` mock (smallest
+  schema-valid answers; a mock flyer read honestly mints no
+  candidate) / fixture (hash-keyed replays, a miss is a loud
+  `FixtureMissError`) / live (no real Meta endpoint exists
+  in this environment), plus the demo (`./demo.sh`, the
+  three demo logins, idempotent seed). Mermaid gate now 56
+  diagrams in docs/. Pinned by a new docs-gate test that
+  additionally parses the LIVE registry out of errors.py
+  and fails naming any code missing from the table; docs
+  gate now 22 tests. Regression batch (docs gate +
+  submission pack + threat model + architecture + account
+  security + stream + developer pack) 57 passed per its own
+  delivered log (corrected from 72, which was recorded
+  before that log arrived). Full suite
+  NOT re-run — docs/tests only, no src changes (Phase 18
+  precedent); a full Phase 18 green is the B-200 gate's to
+  prove. Next: B-197. Progress: **196/350**.
+- **B-197 per-code-file atlas** ✅ (timer crew, 2026-10-26):
+  `docs/16-per-file-atlas.md` — GENERATED by
+  `scripts/build_file_atlas.py` (stdlib AST + git history)
+  so its 391 entries cannot drift by hand: one entry per
+  Python file under src/ (188), migrations (22), scripts
+  (20), tests (161), each carrying purpose (the file's own
+  D-26 header docstring), module (the B-161 modulemap for
+  services; family otherwise), public symbols, imports,
+  allowed/forbidden dependencies + failure behaviour as
+  LAYER laws stated per layer (not per-file inventions),
+  owned tables for models, tests that name it (labelled an
+  honest proxy), and the creating slice from
+  `git log --diff-filter=A`. The checker its roadmap line
+  orders lives in the docs gate: it re-derives the file
+  list from the live tree and fails NAMING any missing or
+  stale entry, and asserts all eight fields per entry.
+  Mermaid gate now 57 diagrams. Docs gate now 23 tests;
+  regression batch (docs gate + comment gate +
+  architecture) 32 passed. One entry ages by design: a new
+  file's "Created by" reads pre-git until its commit lands.
+  Next: B-198. Progress: **197/350**.
+- **B-198 testing + quality document** ✅ (timer crew,
+  2026-10-26): `docs/17-testing-and-quality.md` — how to
+  run (test.sh anatomy: Mermaid gate first, then the suite,
+  one-page report; the basetemp note for small-/tmp hosts;
+  the PostgreSQL leg), how to read the ZIP's TEST_REPORT
+  (reconciliation arithmetic, the superseded-assertion
+  discipline, deliberately imperfect evaluation corpora,
+  NOT RUN markers), every suite family explained by what
+  it guards, the failure-becomes-a-fixture discipline
+  (reproduce alone → fix at root → freeze as fixture →
+  supersede honestly → totals from the run's own log), and
+  the non-pytest gates. Appendix generated from the test
+  files' own headers names all 156 test files (157 with
+  the B-200 gate file, added by the gate's finding-fix).
+  Pinned by a docs-gate test asserting every test file is
+  named; docs gate now 24 tests (25 with B-199's). Next:
+  B-199. Progress: **198/350**.
+- **B-199 deployment + release document** ✅ (timer crew,
+  2026-10-26): `docs/18-deployment-and-release.md` — native
+  install with NO Docker (Linux systemd road rehearsed at
+  B-153: dedicated user, non-editable venv, 0640 env never
+  overwritten; Windows run.ps1 / macOS run.sh roads with
+  the supervision gap stated honestly — no Windows Service
+  or launchd units ship; Pi/cloud installs NOT RUN, in
+  TEST_REPORT), the three units + 03:15 backup timer,
+  proxy/TLS (Caddy live-proven at B-154; nginx example
+  reviewed, live validation NOT RUN), verify-then-place
+  backups, upgrade.py (backup → migrate → smoke → swap,
+  rollback printed every run, `.previous-<stamp>` tree),
+  the §8 ZIP anatomy with the B-179 Ed25519 signature +
+  fingerprint check and the SPDX SBOM, and release
+  discipline (green-suite totals, freeze drill, known
+  limits travel with the release). Pinned by a docs-gate
+  test; docs gate now 25 tests. Next: B-200. Progress:
+  **199/350**.
+- **B-200 documentation proof — Phase 18 gate** ✅ (timer
+  crew, 2026-10-26): `tests/test_phase18_gate.py` (5 tests).
+  HUMAN COLD READS ARE NOT RUN — no human readers exist in
+  this environment, recorded with the project's usual
+  honesty; the gate substitutes the strongest provable
+  forms: (1) USER cold read as an EXECUTABLE leg — guide
+  I's first-success checklist is parsed out of docs/01 and
+  its golden tasks are executed through the API doors the
+  guide names, in order, on a fresh app (register → create
+  group → invite → settings → preferences); (2) FRONTEND
+  cold read — B-196's stated contract size re-derived from
+  the live OPENAPI.json (201 paths / 229 schemas, exact)
+  and the generated types checked for the core shapes;
+  (3) BACKEND cold read — the publish flow as docs/08 +
+  docs/10 tell it traced against the live internal
+  registry (candidates.create + events.publish exist,
+  owned as told; the approval law matches the service's
+  own enforcement). Diagram accuracy: every docs/ diagram
+  parses and the module atlas names every modulemap
+  module. FINDINGS, fixed in this same release per the
+  roadmap line: the gate's own first draft held three
+  wrong assumptions — operations register in handlers.py,
+  not registry.py; the me-scoped preferences door answers
+  a non-member 403 `forbidden` by design (membership
+  first), not 404; docs/08 states the approval law in
+  prose ("can never approve… enforced in the service")
+  while the code name lives in docs/09 — all verified
+  consistent against the code and the gate corrected to
+  assert the true statements. The new gate file itself
+  tripped B-197's atlas checker and B-198's inventory —
+  both regenerated/appended in this release, the gates
+  working as designed. **Full suite (the Phase 18 green
+  every earlier slice deferred here): 1056 passed, 7
+  skipped, 0 failed in 46m32s**, totals from the run's
+  own log (`~/workspace/.verify-tmp/gpa-p18gate/full.log`),
+  reconciled in the header above. Contract unchanged:
+  201 paths / 229 schemas. No ZIP at this gate (the next
+  train point is the roadmap's). **Phase 18 COMPLETE:
+  200/350. Next: Phase 19, B-201.**
 
 ### Later phases: NOT STARTED (per roadmap order)
 Phase 16 begins at B-157.

@@ -1005,3 +1005,49 @@ were taken, each found by the gate itself:
   floors unmeasured** at this gate and left unstated in
   QUALITY_PIPELINE.md rather than invented.
 - Progress: **180/350 slices, Phases 0–17 complete.**
+
+
+# Phase 18 gate — B-200, the documentation proof (2026-10-26)
+
+Phase 18 (B-181 → B-200) wrote the documentation set as
+code: the user guide (six chapters), the admin/operator
+guide, the architecture diagram pack, the module atlas,
+the internal encrypted API document, the data-model
+document, the AI pipeline document, the security +
+cryptography document, the durability + recovery
+document, the API + frontend guide, the per-code-file
+atlas (391 files, generated, with a tree↔atlas checker),
+the testing + quality document, and the deployment +
+release document. Every chapter is pinned by a docs-gate
+test that re-derives its claims from the live tree —
+routes from `OPENAPI.json`, error codes from `errors.py`,
+tables from the models, operations from the internal
+registry — so a document that drifts from the code fails
+the suite like any other lie.
+
+The B-200 gate ran three cold reads as executable/audit
+legs: the guide's own checklist parsed from the chapter
+and its golden tasks executed through the guide's API
+doors; B-196's contract claims re-derived from the live
+`OPENAPI.json` (201 paths / 229 schemas, unchanged); the
+publish flow traced against the live internal registry.
+Findings were fixed in-release (the registry now names
+the operations the docs describe; the atlas and the
+B-198 inventory regenerated for the new gate file).
+**Human cold reads: NOT RUN** — no human readers exist in
+this environment; the waiver is recorded in the open,
+here and in the gate commit.
+
+- **Full suite, SQLite: 1,056 passed, 7 skipped,
+  0 failed** in 46 m 32 s (the gate run's own log,
+  `gpa-p18gate/full.log`). Collected 1,063 = 1,033 at
+  the Phase 17 gate + 25 docs-gate tests + 5 Phase 18
+  gate tests; the 7 skips are the PostgreSQL parity
+  tests standing down without an admin URL, as always.
+- **PostgreSQL: not re-run at this gate.** Phase 18
+  changed documentation and its gates only — no engine
+  behaviour — and PG parity stands as verified at the
+  Phase 17 gate (1,013 passed on-engine), one phase back.
+  Stated plainly rather than implied.
+- Contract: **201 paths / 229 schemas** (unchanged).
+- Progress: **200/350 slices, Phases 0–18 complete.**

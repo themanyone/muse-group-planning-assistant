@@ -8,6 +8,9 @@ cd "$(dirname "$0")"
 echo "=================================================="
 echo " Group Planning Assistant — test report"
 echo "=================================================="
+# B-181 docs gate: a broken Mermaid diagram fails the release,
+# by file, before the suite runs (roadmap D-34 / section 6A.8).
+uv run python scripts/check_mermaid.py || exit 1
 uv run pytest -q > /tmp/gpa-test-output.txt 2>&1
 STATUS=$?
 cat /tmp/gpa-test-output.txt
