@@ -128,10 +128,11 @@ Volmarr Wyrd is a cyber-viking, Norse-Pagan Priest, and [published author](https
 
 ---
 
-### [Geoffrey Hymphreys](https://www.facebook.com/share/1CNUJqy8v1/) (human) 
+### [Geoffrey Humphreys]([https://www.facebook.com/share/1CNUJqy8v1/](https://www.facebook.com/geoffrey.g.humphreys)) (human) 
 
 - Please put your picture here.
 - Please write about yourself here.
+- No u.
 
 #### Geoffrey's Social Media
 
